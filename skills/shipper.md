@@ -62,6 +62,23 @@ Rules:
 - Body explains WHY, not WHAT (the diff shows what)
 - One logical change per commit
 
+## Branch Naming
+
+Before pushing, check the default branch name. If it is `master`, rename it to `main`:
+
+```bash
+# Check current branch
+git branch --show-current
+
+# If master, rename to main
+git branch -m master main
+git push origin main
+git push origin --delete master  # after updating default on GitHub
+git branch --set-upstream-to=origin/main main
+```
+
+This is **non-negotiable** — the default branch is always `main`, never `master`.
+
 ## Push & PR
 
 ```bash
@@ -85,6 +102,7 @@ PR requirements:
 - Never force-push to shared branches
 - Never ship with failing tests
 - Never ship without running the build
+- Default branch is always `main` — if `master` exists, rename to `main` before pushing
 - >500 lines changed → consider splitting into multiple PRs
 - Breaking changes require migration guide
 
