@@ -8,34 +8,35 @@ A portable AI agent system that turns any IDE's AI into a **team of interconnect
 
 ## Setup
 
-### Option 1: Installer (Recommended)
+### Quick Install (One Command)
+
+`cd` into your project, then run:
 
 ```bash
-git clone https://github.com/YOUR_USER/maxxy-agent.git ~/.maxxy-agent
-~/.maxxy-agent/setup.sh /path/to/your/project
+git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-agent && /tmp/maxxy-agent/setup.sh . && rm -rf /tmp/maxxy-agent
 ```
 
-### Option 2: Direct Copy
+That's it. One line. It clones to a temp folder, installs into your project, and cleans up.
+
+### Option 2: Reusable Global Install
+
+Install once, use in any project:
 
 ```bash
-git clone https://github.com/YOUR_USER/maxxy-agent.git .maxxy-tmp
-cp -r .maxxy-tmp/{.cursorrules,.windsurfrules,.windsurf,.cursor,.github,.opencode,.codex,CLAUDE.md,AGENTS.md,skills,roles,tools,templates} .
-rm -rf .maxxy-tmp
+git clone https://github.com/Omakidx/maxxy-me.git ~/.maxxy-agent
+```
+
+Then for each project:
+
+```bash
+~/.maxxy-agent/setup.sh /path/to/your/project
 ```
 
 ### Option 3: Git Submodule
 
 ```bash
-git submodule add https://github.com/YOUR_USER/maxxy-agent.git .maxxy-agent
+git submodule add https://github.com/Omakidx/maxxy-me.git .maxxy-agent
 .maxxy-agent/setup.sh .
-```
-
-### Post-Setup
-
-After installation, copy the team memory template to your project root:
-
-```bash
-cp templates/team-memory.txt ./team-memory.txt
 ```
 
 No dependencies. No API keys. No configuration. Just files.

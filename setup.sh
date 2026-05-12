@@ -61,6 +61,12 @@ copy_if_missing "$SCRIPT_DIR/skills" "$TARGET/skills"
 # Roles (specialist personas)
 copy_if_missing "$SCRIPT_DIR/roles" "$TARGET/roles"
 
+# Tools (dev references, scaffolders, audit)
+copy_if_missing "$SCRIPT_DIR/tools" "$TARGET/tools"
+
+# Templates (new role templates, team memory)
+copy_if_missing "$SCRIPT_DIR/templates" "$TARGET/templates"
+
 echo ""
 echo "═══════════════════════════════════════════"
 echo "  DONE. Maxxy-Agent installed to: $TARGET"
@@ -73,6 +79,6 @@ echo "    • Codex     → AGENTS.md + .codex/"
 echo "    • Copilot   → .github/copilot-instructions.md"
 echo "    • OpenCode  → .opencode/rules.md"
 echo ""
-echo "  Skills available in: skills/"
-echo "  Use /plan, /debug, /review, /security, /ship"
+echo "  Quick start: Use /plan, /debug, /review, /security, /ship"
+echo "  All roles:   /frontend-dev, /backend-dev, /devops, /dba, etc."
 echo "═══════════════════════════════════════════"
