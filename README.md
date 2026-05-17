@@ -13,10 +13,12 @@ A portable AI agent system that turns any IDE's AI into a **team of interconnect
 `cd` into your project, then run:
 
 ```bash
-git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-agent && /tmp/maxxy-agent/setup.sh . && rm -rf /tmp/maxxy-agent
+git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-agent && /tmp/maxxy-agent/setup.sh . windsurf && rm -rf /tmp/maxxy-agent
 ```
 
-That's it. One line. It clones to a temp folder, installs into your project, and cleans up.
+Replace `windsurf` with your IDE: `windsurf`, `cursor`, `claude`, `codex`, `copilot`, `opencode`, or `all`.
+
+Everything installs into a single `.maxxy-agent/` folder. Only your IDE's config files go to the project root.
 
 ### Option 2: Reusable Global Install
 
@@ -29,17 +31,16 @@ git clone https://github.com/Omakidx/maxxy-me.git ~/.maxxy-agent
 Then for each project:
 
 ```bash
-~/.maxxy-agent/setup.sh /path/to/your/project
+~/.maxxy-agent/setup.sh /path/to/your/project windsurf
 ```
 
-### Option 3: Git Submodule
+### Activate a Different IDE Later
 
 ```bash
-git submodule add https://github.com/Omakidx/maxxy-me.git .maxxy-agent
-.maxxy-agent/setup.sh .
+.maxxy-agent/setup.sh . cursor
 ```
 
-No dependencies. No API keys. No configuration. Just files.
+No dependencies. No API keys. No build step. Just files.
 
 ---
 
@@ -258,18 +259,12 @@ Reference guides, scaffolders, and audit procedures in `.maxxy-agent/tools/`.
 
 ```
 your-project/
-├── .cursorrules                 # Cursor rules (IDE-required at root)
-├── .windsurfrules               # Windsurf rules (IDE-required at root)
-├── CLAUDE.md                    # Claude Code rules (IDE-required at root)
-├── AGENTS.md                    # Codex agent rules (IDE-required at root)
-├── team-memory.txt              # Shared team context (create per project)
+├── .windsurfrules               # ← Only if you ran: setup.sh . windsurf
+├── .windsurf/                   #    (IDE-specific, placed at root on activation)
 │
-├── .windsurf/workflows/         # Slash command workflows (IDE-required)
-│   ├── plan.md, debug.md, review.md, ship.md, security-audit.md
-│   ├── autoplan.md, research.md, team.md, create-role.md
-│   └── <role-slug>.md           # One per specialist role
-│
-└── .maxxy-agent/                # ← Everything else lives here (one folder)
+└── .maxxy-agent/                # ← Everything lives here (one hidden folder)
+    ├── setup.sh                 # Re-run to activate another IDE
+    │
     ├── skills/                  # Step-by-step skill protocols
     │   ├── planner.md           # /plan — strategic decomposition
     │   ├── debugger.md          # /debug — root cause investigation
@@ -293,9 +288,16 @@ your-project/
     │   ├── component-scaffolder.md, api-scaffolder.md, test-scaffolder.md
     │   └── performance-audit.md, security-scanner.md, code-quality.md
     │
-    └── templates/               # Templates for new roles and team memory
-        ├── new-role/            # Role creation templates
-        └── team-memory.txt      # Team memory template
+    ├── templates/               # Templates for new roles and team memory
+    │   ├── new-role/            # Role creation templates
+    │   └── team-memory.txt      # Team memory template
+    │
+    ├── .windsurf/               # IDE configs (source of truth, stored here)
+    ├── .cursor/                 # Activated to root via: setup.sh . <ide>
+    ├── .codex/, .opencode/, .github/
+    ├── CLAUDE.md, AGENTS.md
+    ├── .windsurfrules, .cursorrules
+    └── ...
 ```
 
 ---
