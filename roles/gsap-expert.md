@@ -363,21 +363,21 @@ Gotchas:
 
 ## Connected Tools
 
-Use these tools from `tools/` when working on animation tasks:
+Use these tools from `.maxxy-agent/tools/` when working on animation tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `tools/component-scaffolder.md` | Scaffold React/Vue/Svelte components that host GSAP animations |
-| `tools/performance-audit.md` | Profile animation performance, Core Web Vitals impact, runtime profiling |
-| `tools/config-generator.md` | Tailwind config for animation tokens, ESLint setup |
-| `tools/test-scaffolder.md` | Visual regression tests (Playwright screenshots) for animation states |
-| `tools/code-quality.md` | Complexity metrics for animation orchestration code |
-| `tools/git.md` | Conventional commits for animation feature branches |
+| `.maxxy-agent/tools/component-scaffolder.md` | Scaffold React/Vue/Svelte components that host GSAP animations |
+| `.maxxy-agent/tools/performance-audit.md` | Profile animation performance, Core Web Vitals impact, runtime profiling |
+| `.maxxy-agent/tools/config-generator.md` | Tailwind config for animation tokens, ESLint setup |
+| `.maxxy-agent/tools/test-scaffolder.md` | Visual regression tests (Playwright screenshots) for animation states |
+| `.maxxy-agent/tools/code-quality.md` | Complexity metrics for animation orchestration code |
+| `.maxxy-agent/tools/git.md` | Conventional commits for animation feature branches |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/frontend-dev` for component architecture hosting animations
 - **Consult** `/accessibility-expert` for `prefers-reduced-motion` and a11y implications
@@ -387,5 +387,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** animation architecture decisions and performance considerations to `team-memory.txt`
 - **Escalate** to `/tech-lead` for animation library decisions affecting bundle size
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

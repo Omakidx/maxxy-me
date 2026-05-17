@@ -74,21 +74,21 @@ Action Items:
 
 ## Connected Tools
 
-Use these tools from `tools/` when reviewing code and setting standards:
+Use these tools from `.maxxy-agent/tools/` when reviewing code and setting standards:
 
 | Tool | When to Use |
 |------|-------------|
-| `tools/git.md` | Enforce conventional commits, branching strategy, PR size guidelines |
-| `tools/code-quality.md` | Complexity metrics, duplication detection, coverage thresholds, refactoring patterns |
-| `tools/config-generator.md` | Standardize ESLint, Prettier, tsconfig, CI/CD across the team |
-| `tools/dependency-audit.md` | Evaluate new deps, check for outdated/unused packages, license compliance |
-| `tools/test-scaffolder.md` | Set testing standards — unit/integration/E2E patterns for the team |
-| `tools/security-scanner.md` | Security checklist for PR reviews, secret scanning |
+| `.maxxy-agent/tools/git.md` | Enforce conventional commits, branching strategy, PR size guidelines |
+| `.maxxy-agent/tools/code-quality.md` | Complexity metrics, duplication detection, coverage thresholds, refactoring patterns |
+| `.maxxy-agent/tools/config-generator.md` | Standardize ESLint, Prettier, tsconfig, CI/CD across the team |
+| `.maxxy-agent/tools/dependency-audit.md` | Evaluate new deps, check for outdated/unused packages, license compliance |
+| `.maxxy-agent/tools/test-scaffolder.md` | Set testing standards — unit/integration/E2E patterns for the team |
+| `.maxxy-agent/tools/security-scanner.md` | Security checklist for PR reviews, secret scanning |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/cto` for architecture-level decisions that exceed your scope
 - **Delegate** domain-specific implementation to `/frontend-dev`, `/backend-dev`, `/mobile-dev`
@@ -104,5 +104,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - Process decisions (branching, CI, PR workflow)
 - Mediating between individual contributors
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

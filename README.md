@@ -244,7 +244,7 @@ Stage 7: SHIP         → /devops        → Deployed, verified
 
 ## Tools (Developer Utilities)
 
-Reference guides, scaffolders, and audit procedures in `tools/`.
+Reference guides, scaffolders, and audit procedures in `.maxxy-agent/tools/`.
 
 | Category | Tools | Purpose |
 |----------|-------|---------|
@@ -258,61 +258,44 @@ Reference guides, scaffolders, and audit procedures in `tools/`.
 
 ```
 your-project/
-├── .cursorrules                 # Cursor rules
-├── .windsurfrules               # Windsurf rules
-├── CLAUDE.md                    # Claude Code rules
-├── AGENTS.md                    # Codex agent rules
+├── .cursorrules                 # Cursor rules (IDE-required at root)
+├── .windsurfrules               # Windsurf rules (IDE-required at root)
+├── CLAUDE.md                    # Claude Code rules (IDE-required at root)
+├── AGENTS.md                    # Codex agent rules (IDE-required at root)
 ├── team-memory.txt              # Shared team context (create per project)
 │
-├── .windsurf/workflows/         # Slash command workflows
-│   ├── plan.md                  # /plan
-│   ├── debug.md                 # /debug
-│   ├── review.md                # /review
-│   ├── ship.md                  # /ship
-│   ├── security-audit.md        # /security
-│   ├── autoplan.md              # /autoplan
-│   ├── research.md              # /research
-│   ├── team.md                  # /team
-│   └── create-role.md           # /create-role
+├── .windsurf/workflows/         # Slash command workflows (IDE-required)
+│   ├── plan.md, debug.md, review.md, ship.md, security-audit.md
+│   ├── autoplan.md, research.md, team.md, create-role.md
+│   └── <role-slug>.md           # One per specialist role
 │
-├── skills/                      # Step-by-step skill protocols
-│   ├── planner.md               # Strategic decomposition
-│   ├── debugger.md              # Root cause investigation
-│   ├── reviewer.md              # 6-dimension code review
-│   ├── security-auditor.md      # OWASP + STRIDE audit
-│   └── shipper.md               # Release pipeline
-│
-├── roles/                       # Specialist personas
-│   ├── _team-protocol.md        # Team collaboration rules (all roles inherit)
-│   ├── ceo.md                   # Product Visionary
-│   ├── cto.md                   # Chief Architect
-│   ├── tech-lead.md             # Technical Lead
-│   ├── frontend-dev.md          # Frontend Engineer
-│   ├── backend-dev.md           # Backend Engineer
-│   ├── mobile-dev.md            # Mobile Engineer
-│   ├── devops.md                # Platform Engineer
-│   ├── dba.md                   # Database Architect
-│   ├── qa-engineer.md           # QA Engineer
-│   ├── security-engineer.md     # Security Engineer
-│   ├── auth-expert.md           # Auth Engineer
-│   ├── accessibility-expert.md  # Accessibility Engineer
-│   ├── gsap-expert.md           # Animation Engineer
-│   ├── figma-expert.md          # Design Engineer
-│   ├── neondb-expert.md         # Neon Postgres Engineer
-│   ├── realtime-systems.md      # Real-Time Systems Engineer
-│   ├── web-cloner.md            # Web Cloner Engineer
-│   └── code-rabbit-expert.md    # CodeRabbit Engineer
-│
-├── tools/                       # Developer utilities & audit procedures
-│   ├── git.md, regex.md, docker.md, sql.md, api-testing.md, cli-productivity.md
-│   ├── component-scaffolder.md, api-scaffolder.md, test-scaffolder.md, config-generator.md
-│   └── performance-audit.md, security-scanner.md, code-quality.md, dependency-audit.md
-│
-├── templates/                   # Templates for new roles and team memory
-│   ├── new-role/                # Role creation templates
-│   └── team-memory.txt          # Team memory template
-│
-└── .research/                   # Cached research reports (auto-generated)
+└── .maxxy-agent/                # ← Everything else lives here (one folder)
+    ├── skills/                  # Step-by-step skill protocols
+    │   ├── planner.md           # /plan — strategic decomposition
+    │   ├── debugger.md          # /debug — root cause investigation
+    │   ├── reviewer.md          # /review — 6-dimension code review
+    │   ├── security-auditor.md  # /security — OWASP + STRIDE audit
+    │   └── shipper.md           # /ship — release pipeline
+    │
+    ├── roles/                   # Specialist personas (18 roles)
+    │   ├── _team-protocol.md    # Team collaboration rules
+    │   ├── ceo.md, cto.md, tech-lead.md
+    │   ├── frontend-dev.md, backend-dev.md, mobile-dev.md
+    │   ├── devops.md, dba.md, qa-engineer.md
+    │   ├── security-engineer.md, auth-expert.md
+    │   ├── accessibility-expert.md, gsap-expert.md
+    │   ├── figma-expert.md, neondb-expert.md
+    │   ├── realtime-systems.md, web-cloner.md
+    │   └── code-rabbit-expert.md
+    │
+    ├── tools/                   # Developer utilities & audit procedures
+    │   ├── git.md, regex.md, docker.md, sql.md, api-testing.md
+    │   ├── component-scaffolder.md, api-scaffolder.md, test-scaffolder.md
+    │   └── performance-audit.md, security-scanner.md, code-quality.md
+    │
+    └── templates/               # Templates for new roles and team memory
+        ├── new-role/            # Role creation templates
+        └── team-memory.txt      # Team memory template
 ```
 
 ---
@@ -363,23 +346,23 @@ Agent detects "virtual list" as a pattern needing research → runs `/research d
 
 ## Creating New Roles
 
-Use the `/create-role` command or manually create a file in `roles/`:
+Use the `/create-role` command or manually create a file in `.maxxy-agent/roles/`:
 
 ```bash
 # Automated (with deep research)
 /create-role redis-expert
 
 # Manual
-touch roles/your-role.md
+touch .maxxy-agent/roles/your-role.md
 ```
 
 Every new role automatically inherits:
 - Team Collaboration Protocol (consult/delegate/escalate)
 - Pre-Implementation Research (auto-research before unfamiliar work)
 - Team Memory integration (read/write shared context)
-- Tool access (all tools in `tools/`)
+- Tool access (all tools in `.maxxy-agent/tools/`)
 
-Use `templates/new-role/ROLE_TEMPLATE.md` as the starting structure.
+Use `.maxxy-agent/templates/new-role/ROLE_TEMPLATE.md` as the starting structure.
 
 ---
 

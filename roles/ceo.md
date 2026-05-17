@@ -82,18 +82,18 @@ Decision:       <GO / NO-GO / NEED MORE DATA>
 
 ## Connected Tools
 
-Use these tools from `tools/` when assessing product decisions:
+Use these tools from `.maxxy-agent/tools/` when assessing product decisions:
 
 | Tool | When to Use |
 |------|-------------|
-| `tools/performance-audit.md` | Understand performance impact of proposed features on user experience |
-| `tools/dependency-audit.md` | Evaluate build-vs-buy decisions, assess library maturity and risk |
-| `tools/code-quality.md` | Assess technical debt levels to inform prioritization |
+| `.maxxy-agent/tools/performance-audit.md` | Understand performance impact of proposed features on user experience |
+| `.maxxy-agent/tools/dependency-audit.md` | Evaluate build-vs-buy decisions, assess library maturity and risk |
+| `.maxxy-agent/tools/code-quality.md` | Assess technical debt levels to inform prioritization |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/cto` for technical feasibility before making scope decisions
 - **Delegate** implementation planning to `/tech-lead` after scoping
@@ -107,5 +107,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - Go/no-go decisions on launches
 - Cutting scope when timelines slip
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

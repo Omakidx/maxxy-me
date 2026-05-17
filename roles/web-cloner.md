@@ -58,10 +58,10 @@ reason, and you find it.
 - **Typography Parity:** Font rendering, anti-aliasing, line breaks, text overflow, truncation
 
 ### Design System Outputs
-- **DESIGN.md:** Human-readable style reference — colors, typography, spacing, components (lives in `roles/clonner/DESIGN.md`)
-- **Tailwind Config:** `@theme` block with all extracted tokens (lives in `roles/clonner/tailwind.config.md`)
-- **CSS Variables:** `:root` custom properties for framework-agnostic usage (lives in `roles/clonner/css-variables.md`)
-- **Design Tokens:** W3C-format JSON tokens for cross-platform consumption (lives in `roles/clonner/design-tokens.md`)
+- **DESIGN.md:** Human-readable style reference — colors, typography, spacing, components (lives in `.maxxy-agent/roles/clonner/DESIGN.md`)
+- **Tailwind Config:** `@theme` block with all extracted tokens (lives in `.maxxy-agent/roles/clonner/tailwind.config.md`)
+- **CSS Variables:** `:root` custom properties for framework-agnostic usage (lives in `.maxxy-agent/roles/clonner/css-variables.md`)
+- **Design Tokens:** W3C-format JSON tokens for cross-platform consumption (lives in `.maxxy-agent/roles/clonner/design-tokens.md`)
 
 ## Decision Lens
 
@@ -92,7 +92,7 @@ Phase 1: RECONNAISSANCE
 └── Document interactions (hover, scroll, animations)
 
 Phase 2: DESIGN SYSTEM GENERATION
-├── Check roles/clonner/ for user-provided files
+├── Check .maxxy-agent/roles/clonner/ for user-provided files
 ├── If DESIGN.md has {placeholders} → auto-fill from scrape data
 ├── If tailwind.config.md has {placeholders} → auto-fill
 ├── If css-variables.md has {placeholders} → auto-fill
@@ -310,7 +310,7 @@ function categorizeColors(colors: string[]): Record<string, string> {
 }
 ```
 
-### 5. Auto-Fill Detection for `roles/clonner/` Files
+### 5. Auto-Fill Detection for `.maxxy-agent/roles/clonner/` Files
 
 Check if template files need auto-filling:
 
@@ -328,7 +328,7 @@ function needsAutoFill(filePath: string): boolean {
 }
 
 function getClonnerFileStatus(): Record<string, boolean> {
-  const base = "roles/clonner";
+  const base = ".maxxy-agent/roles/clonner";
   return {
     "DESIGN.md": needsAutoFill(`${base}/DESIGN.md`),
     "tailwind.config.md": needsAutoFill(`${base}/tailwind.config.md`),
@@ -523,7 +523,7 @@ async function extractInteractions(page) {
 
 ### 10. Design File Mapping
 
-| File in `roles/clonner/` | What It Contains | Source Priority |
+| File in `.maxxy-agent/roles/clonner/` | What It Contains | Source Priority |
 |--------------------------|-----------------|----------------|
 | **DESIGN.md** | Human-readable style reference: colors, typography, spacing, components | User-provided > Scraped |
 | **tailwind.config.md** | Tailwind v4 `@theme` block, utility mappings, dark mode | User-provided > Scraped |
@@ -538,7 +538,7 @@ async function extractInteractions(page) {
 3. [ ] Fonts identified and downloaded/linked
 4. [ ] Color palette extracted and categorized
 5. [ ] Spacing scale derived
-6. [ ] roles/clonner/ files populated (user or auto-fill)
+6. [ ] .maxxy-agent/roles/clonner/ files populated (user or auto-fill)
 7. [ ] globals.css generated with @theme tokens
 8. [ ] Component inventory complete
 9. [ ] Component specs written with exact computed values
@@ -604,7 +604,7 @@ async function extractInteractions(page) {
 - **Over-engineer animations** — match what exists; don't add animations the original doesn't have
 
 ### File Management
-- **Ignore the `roles/clonner/` template files** — always check if user provided custom values before auto-filling
+- **Ignore the `.maxxy-agent/roles/clonner/` template files** — always check if user provided custom values before auto-filling
 - **Overwrite user-provided design files** — user values take priority; only auto-fill fields with `{placeholder}` markers
 - **Generate tokens without documenting source** — always note the source URL and scrape date in DESIGN.md
 
@@ -622,7 +622,7 @@ async function extractInteractions(page) {
 
 ## Verification Checklist
 
-- [ ] All 4 files in `roles/clonner/` are populated (user-provided or auto-filled, no `{placeholder}` remaining)
+- [ ] All 4 files in `.maxxy-agent/roles/clonner/` are populated (user-provided or auto-filled, no `{placeholder}` remaining)
 - [ ] Typography matches: same font family, weights, sizes, line-heights at every level
 - [ ] Color palette matches: primary, secondary, surface, border, text colors all extracted as tokens
 - [ ] Spacing rhythm matches: consistent padding/margin/gap patterns derived from base unit
@@ -657,10 +657,10 @@ Reconnaissance:
   Assets:       <count of images, SVGs, videos to download>
 
 Design Files:
-  roles/clonner/DESIGN.md:        <user-provided / auto-filled>
-  roles/clonner/tailwind.config.md: <user-provided / auto-filled>
-  roles/clonner/css-variables.md:  <user-provided / auto-filled>
-  roles/clonner/design-tokens.md:  <user-provided / auto-filled>
+  .maxxy-agent/roles/clonner/DESIGN.md:        <user-provided / auto-filled>
+  .maxxy-agent/roles/clonner/tailwind.config.md: <user-provided / auto-filled>
+  .maxxy-agent/roles/clonner/css-variables.md:  <user-provided / auto-filled>
+  .maxxy-agent/roles/clonner/design-tokens.md:  <user-provided / auto-filled>
 
 Build Plan:
   1. <component or section to build>
@@ -676,7 +676,7 @@ QA:
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/frontend-dev` for component architecture and framework patterns
 - **Consult** `/figma-expert` for design token extraction and systematic design
@@ -687,5 +687,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** extraction findings, design token decisions, and build progress to `team-memory.txt`
 - **Escalate** to `/tech-lead` for build architecture, to `/ceo` for clone scope decisions
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

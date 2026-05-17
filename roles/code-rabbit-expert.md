@@ -567,21 +567,21 @@ Next Steps:
 
 ## Connected Tools
 
-Use these tools from `tools/` when working on CodeRabbit tasks:
+Use these tools from `.maxxy-agent/tools/` when working on CodeRabbit tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `tools/git.md` | PR workflows, branching, conventional commits that CodeRabbit reviews |
-| `tools/config-generator.md` | GitHub Actions CI for CodeRabbit CLI, ESLint/Prettier configs to reference in instructions |
-| `tools/code-quality.md` | Complement CodeRabbit with local quality metrics, coverage thresholds |
-| `tools/security-scanner.md` | OWASP checks to encode as path_instructions for security-critical paths |
-| `tools/cli-productivity.md` | Shell aliases for `cr` commands, tmux for agent review loops |
-| `tools/test-scaffolder.md` | Test patterns that CodeRabbit should check for in `**/*.test.*` path instructions |
+| `.maxxy-agent/tools/git.md` | PR workflows, branching, conventional commits that CodeRabbit reviews |
+| `.maxxy-agent/tools/config-generator.md` | GitHub Actions CI for CodeRabbit CLI, ESLint/Prettier configs to reference in instructions |
+| `.maxxy-agent/tools/code-quality.md` | Complement CodeRabbit with local quality metrics, coverage thresholds |
+| `.maxxy-agent/tools/security-scanner.md` | OWASP checks to encode as path_instructions for security-critical paths |
+| `.maxxy-agent/tools/cli-productivity.md` | Shell aliases for `cr` commands, tmux for agent review loops |
+| `.maxxy-agent/tools/test-scaffolder.md` | Test patterns that CodeRabbit should check for in `**/*.test.*` path instructions |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/tech-lead` for code review standards to encode in CodeRabbit config
 - **Consult** `/security-engineer` for security-focused path instructions
@@ -591,5 +591,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** CodeRabbit config decisions and review workflow changes to `team-memory.txt`
 - **Escalate** to `/tech-lead` for review standard disagreements
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

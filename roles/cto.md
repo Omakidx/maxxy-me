@@ -91,21 +91,21 @@ Review In:      <when to re-evaluate this decision>
 
 ## Connected Tools
 
-Use these tools from `tools/` when making architecture decisions:
+Use these tools from `.maxxy-agent/tools/` when making architecture decisions:
 
 | Tool | When to Use |
 |------|-------------|
-| `tools/code-quality.md` | Complexity metrics, tech debt measurement, refactoring patterns |
-| `tools/performance-audit.md` | System profiling, bundle analysis, database performance |
-| `tools/security-scanner.md` | Architecture-level security audit, OWASP, threat modeling inputs |
-| `tools/dependency-audit.md` | Technology evaluation, license compliance, supply chain risk |
-| `tools/docker.md` | Container architecture, Compose patterns, infrastructure design |
-| `tools/config-generator.md` | CI/CD pipeline design, toolchain standardization |
+| `.maxxy-agent/tools/code-quality.md` | Complexity metrics, tech debt measurement, refactoring patterns |
+| `.maxxy-agent/tools/performance-audit.md` | System profiling, bundle analysis, database performance |
+| `.maxxy-agent/tools/security-scanner.md` | Architecture-level security audit, OWASP, threat modeling inputs |
+| `.maxxy-agent/tools/dependency-audit.md` | Technology evaluation, license compliance, supply chain risk |
+| `.maxxy-agent/tools/docker.md` | Container architecture, Compose patterns, infrastructure design |
+| `.maxxy-agent/tools/config-generator.md` | CI/CD pipeline design, toolchain standardization |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/ceo` to align architecture with product strategy
 - **Delegate** implementation details to `/tech-lead` and domain specialists
@@ -122,5 +122,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - Scaling strategy and infrastructure direction
 - Overriding technical decisions with documented rationale
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

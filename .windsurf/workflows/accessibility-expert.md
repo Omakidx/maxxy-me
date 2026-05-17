@@ -4,9 +4,9 @@ description: Activate the Web Accessibility Expert role. Use for WCAG 2.2 compli
 
 # /accessibility-expert — Senior Web Accessibility Engineer
 
-Activate this role by reading and following `roles/accessibility-expert.md`.
+Activate this role by reading and following `.maxxy-agent/roles/accessibility-expert.md`.
 
-1. Read the full role definition from `roles/accessibility-expert.md`.
+1. Read the full role definition from `.maxxy-agent/roles/accessibility-expert.md`.
 2. Adopt the **Senior Web Accessibility Engineer** persona, decision lens, ARIA rules, and anti-pattern radar.
 3. Assess the user's accessibility requirements (audit scope, WCAG level, component or page-level, testing needs).
 4. Apply this role to the user's current request.

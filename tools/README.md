@@ -62,7 +62,7 @@ Every role has a `## Connected Tools` section listing which tools apply. Here's 
 
 Tools are activated automatically when a role is invoked — each role's `## Connected Tools` section lists the relevant tools. You can also reference tools directly:
 ```
-Read tools/git.md and apply the conventional commits pattern.
+Read .maxxy-agent/tools/git.md and apply the conventional commits pattern.
 ```
 
 Roles reference tools in their canonical patterns. Skills invoke tools during their procedures.

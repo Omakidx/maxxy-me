@@ -55,17 +55,22 @@ copy_if_missing "$SCRIPT_DIR/.opencode" "$TARGET/.opencode"
 # Codex CLI
 copy_if_missing "$SCRIPT_DIR/.codex" "$TARGET/.codex"
 
+# ─── .maxxy-agent/ bundle (keeps project root clean) ───
+echo ""
+echo "Installing .maxxy-agent/ bundle..."
+echo ""
+
 # Skills (universal, all IDEs can reference)
-copy_if_missing "$SCRIPT_DIR/skills" "$TARGET/skills"
+copy_if_missing "$SCRIPT_DIR/skills" "$TARGET/.maxxy-agent/skills"
 
 # Roles (specialist personas)
-copy_if_missing "$SCRIPT_DIR/roles" "$TARGET/roles"
+copy_if_missing "$SCRIPT_DIR/roles" "$TARGET/.maxxy-agent/roles"
 
 # Tools (dev references, scaffolders, audit)
-copy_if_missing "$SCRIPT_DIR/tools" "$TARGET/tools"
+copy_if_missing "$SCRIPT_DIR/tools" "$TARGET/.maxxy-agent/tools"
 
 # Templates (new role templates, team memory)
-copy_if_missing "$SCRIPT_DIR/templates" "$TARGET/templates"
+copy_if_missing "$SCRIPT_DIR/templates" "$TARGET/.maxxy-agent/templates"
 
 echo ""
 echo "═══════════════════════════════════════════"

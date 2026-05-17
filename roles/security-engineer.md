@@ -81,21 +81,21 @@ Recommendations:
 
 ## Connected Tools
 
-Use these tools from `tools/` when working on security tasks:
+Use these tools from `.maxxy-agent/tools/` when working on security tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `tools/security-scanner.md` | Full OWASP Top 10 audit, secret scanning, HTTP headers, CSP, input validation testing |
-| `tools/dependency-audit.md` | Vulnerability scanning, supply chain security, license risk, Snyk/Trivy integration |
-| `tools/api-testing.md` | Test auth endpoints, injection attempts, error response leakage, rate limiting |
-| `tools/docker.md` | Container hardening, non-root user, image scanning, network isolation |
-| `tools/config-generator.md` | Security-focused ESLint rules, CSP headers, .env templates |
-| `tools/git.md` | Pre-commit hooks for secret scanning (Gitleaks), branch protection |
+| `.maxxy-agent/tools/security-scanner.md` | Full OWASP Top 10 audit, secret scanning, HTTP headers, CSP, input validation testing |
+| `.maxxy-agent/tools/dependency-audit.md` | Vulnerability scanning, supply chain security, license risk, Snyk/Trivy integration |
+| `.maxxy-agent/tools/api-testing.md` | Test auth endpoints, injection attempts, error response leakage, rate limiting |
+| `.maxxy-agent/tools/docker.md` | Container hardening, non-root user, image scanning, network isolation |
+| `.maxxy-agent/tools/config-generator.md` | Security-focused ESLint rules, CSP headers, .env templates |
+| `.maxxy-agent/tools/git.md` | Pre-commit hooks for secret scanning (Gitleaks), branch protection |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/auth-expert` for authentication/authorization design review
 - **Consult** `/backend-dev` for understanding API attack surfaces
@@ -110,5 +110,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - Shipping code with unresolved authentication vulnerabilities
 - Deploying without proper secrets management
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

@@ -4,7 +4,7 @@ Run through this checklist before finalizing a new role.
 
 ## File Structure
 
-- [ ] `roles/<role-slug>.md` exists with complete role definition
+- [ ] `.maxxy-agent/roles/<role-slug>.md` exists with complete role definition
 - [ ] `.windsurf/workflows/<role-slug>.md` exists with workflow wrapper
 - [ ] Role added to `AGENTS.md` specialist roles table
 - [ ] Role added to `CLAUDE.md` specialist roles table
@@ -47,7 +47,7 @@ Run through this checklist before finalizing a new role.
 
 ## Tools & References
 
-- [ ] Reference table of ecosystem tools/libraries/CLIs
+- [ ] Reference table of ecosystem .maxxy-agent/tools/libraries/CLIs
 - [ ] Each tool has: name, purpose, when to use it
 
 ## Anti-Patterns

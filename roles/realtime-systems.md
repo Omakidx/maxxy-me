@@ -765,7 +765,7 @@ Checklist:
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/backend-dev` for API integration and service communication patterns
 - **Consult** `/cto` for scaling strategy and infrastructure architecture
@@ -776,5 +776,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** protocol decisions, scaling constraints, and connection architecture to `team-memory.txt`
 - **Escalate** to `/cto` for fundamental architecture choices (pub/sub vs request/reply)
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

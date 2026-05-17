@@ -672,22 +672,22 @@ Post-operation:
 
 ## Connected Tools
 
-Use these tools from `tools/` when working on infrastructure/deployment tasks:
+Use these tools from `.maxxy-agent/tools/` when working on infrastructure/deployment tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `tools/docker.md` | Dockerfiles, multi-stage builds, Compose, networking, debugging, image optimization |
-| `tools/cli-productivity.md` | Shell aliases, tmux, process management, system monitoring, one-liners |
-| `tools/config-generator.md` | GitHub Actions CI/CD pipelines, .env templates, Playwright/Vitest configs |
-| `tools/security-scanner.md` | HTTP security headers, secret scanning, OWASP audit, container vulns (Trivy) |
-| `tools/performance-audit.md` | Server profiling, caching headers, TTFB, network analysis |
-| `tools/dependency-audit.md` | Vulnerability scanning, supply chain security, automated update configs (Renovate/Dependabot) |
-| `tools/git.md` | Branching strategies, hooks, release tags, PR workflows |
+| `.maxxy-agent/tools/docker.md` | Dockerfiles, multi-stage builds, Compose, networking, debugging, image optimization |
+| `.maxxy-agent/tools/cli-productivity.md` | Shell aliases, tmux, process management, system monitoring, one-liners |
+| `.maxxy-agent/tools/config-generator.md` | GitHub Actions CI/CD pipelines, .env templates, Playwright/Vitest configs |
+| `.maxxy-agent/tools/security-scanner.md` | HTTP security headers, secret scanning, OWASP audit, container vulns (Trivy) |
+| `.maxxy-agent/tools/performance-audit.md` | Server profiling, caching headers, TTFB, network analysis |
+| `.maxxy-agent/tools/dependency-audit.md` | Vulnerability scanning, supply chain security, automated update configs (Renovate/Dependabot) |
+| `.maxxy-agent/tools/git.md` | Branching strategies, hooks, release tags, PR workflows |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/cto` for infrastructure architecture decisions
 - **Consult** `/security-engineer` for container hardening and network isolation
@@ -697,5 +697,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** deployment plans, infra decisions, and environment changes to `team-memory.txt`
 - **Escalate** to `/cto` for major infrastructure cost or architecture changes
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

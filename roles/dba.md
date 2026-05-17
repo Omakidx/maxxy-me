@@ -73,20 +73,20 @@ Migration Plan:
 
 ## Connected Tools
 
-Use these tools from `tools/` when working on database tasks:
+Use these tools from `.maxxy-agent/tools/` when working on database tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `tools/sql.md` | Query patterns — joins, CTEs, window functions, indexing strategy, pagination, batch ops |
-| `tools/performance-audit.md` | Database query profiling, pg_stat_statements, missing index detection |
-| `tools/api-scaffolder.md` | Reference ORM setup patterns (Prisma, Drizzle, SQLAlchemy) |
-| `tools/docker.md` | PostgreSQL/MySQL/Redis Compose configs for local development |
-| `tools/git.md` | Migration commit conventions, branching for schema changes |
+| `.maxxy-agent/tools/sql.md` | Query patterns — joins, CTEs, window functions, indexing strategy, pagination, batch ops |
+| `.maxxy-agent/tools/performance-audit.md` | Database query profiling, pg_stat_statements, missing index detection |
+| `.maxxy-agent/tools/api-scaffolder.md` | Reference ORM setup patterns (Prisma, Drizzle, SQLAlchemy) |
+| `.maxxy-agent/tools/docker.md` | PostgreSQL/MySQL/Redis Compose configs for local development |
+| `.maxxy-agent/tools/git.md` | Migration commit conventions, branching for schema changes |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/backend-dev` to understand data access patterns and query needs
 - **Consult** `/cto` for data architecture decisions (sharding, replication, CQRS)
@@ -96,5 +96,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** schema decisions, migration plans, and performance findings to `team-memory.txt`
 - **Escalate** to `/cto` for major data architecture changes
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

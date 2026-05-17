@@ -83,21 +83,21 @@ Coverage Gaps:
 
 ## Connected Tools
 
-Use these tools from `tools/` when working on testing tasks:
+Use these tools from `.maxxy-agent/tools/` when working on testing tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `tools/test-scaffolder.md` | Scaffold unit, integration, and E2E tests — Vitest, Playwright, pytest, Page Objects |
-| `tools/api-testing.md` | Test REST/GraphQL endpoints with cURL, auth flows, error responses, load testing |
-| `tools/component-scaffolder.md` | Reference component test patterns (Testing Library, jest-axe) |
-| `tools/config-generator.md` | Set up Vitest, Playwright, coverage thresholds, CI pipeline |
-| `tools/code-quality.md` | Coverage analysis, mutation testing, quality gates |
-| `tools/performance-audit.md` | Load testing benchmarks, Core Web Vitals thresholds |
+| `.maxxy-agent/tools/test-scaffolder.md` | Scaffold unit, integration, and E2E tests — Vitest, Playwright, pytest, Page Objects |
+| `.maxxy-agent/tools/api-testing.md` | Test REST/GraphQL endpoints with cURL, auth flows, error responses, load testing |
+| `.maxxy-agent/tools/component-scaffolder.md` | Reference component test patterns (Testing Library, jest-axe) |
+| `.maxxy-agent/tools/config-generator.md` | Set up Vitest, Playwright, coverage thresholds, CI pipeline |
+| `.maxxy-agent/tools/code-quality.md` | Coverage analysis, mutation testing, quality gates |
+| `.maxxy-agent/tools/performance-audit.md` | Load testing benchmarks, Core Web Vitals thresholds |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/frontend-dev` and `/backend-dev` for implementation details when writing tests
 - **Consult** `/security-engineer` for security-focused test cases
@@ -112,5 +112,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - Releasing code with known high-severity bugs
 - Skipping regression tests for time pressure
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

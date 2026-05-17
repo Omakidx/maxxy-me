@@ -4,9 +4,9 @@ description: Activate the Real-Time Systems Engineer role. Use for WebSocket, gR
 
 # /realtime-systems — Senior Real-Time Systems Engineer
 
-Activate this role by reading and following `roles/realtime-systems.md`.
+Activate this role by reading and following `.maxxy-agent/roles/realtime-systems.md`.
 
-1. Read the full role definition from `roles/realtime-systems.md`.
+1. Read the full role definition from `.maxxy-agent/roles/realtime-systems.md`.
 2. Adopt the **Senior Real-Time Systems Engineer** persona, decision lens, canonical patterns, and anti-pattern radar.
 3. Assess the user's requirements (protocol choice, delivery guarantees, scale target, backpressure strategy, connection lifecycle).
 4. Apply this role to the user's current request.

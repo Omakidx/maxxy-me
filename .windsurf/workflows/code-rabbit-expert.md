@@ -4,9 +4,9 @@ description: Activate the CodeRabbit AI Code Review Expert role. Use for CodeRab
 
 # /code-rabbit-expert — CodeRabbit AI Code Review Engineer
 
-Activate this role by reading and following `roles/code-rabbit-expert.md`.
+Activate this role by reading and following `.maxxy-agent/roles/code-rabbit-expert.md`.
 
-1. Read the full role definition from `roles/code-rabbit-expert.md`.
+1. Read the full role definition from `.maxxy-agent/roles/code-rabbit-expert.md`.
 2. **IMPORTANT — Activation Gate:** Before doing anything else, ask the user:
    > "Do you intend to use CodeRabbit in this project? If yes, I'll verify your CLI installation, authentication, and set up configuration. If you haven't signed up, visit https://app.coderabbit.ai/ first."
 3. If the user confirms, run setup verification:

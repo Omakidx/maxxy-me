@@ -55,7 +55,7 @@ every change with evidence.
 
 ## Team Collaboration Protocol
 
-All roles are **interconnected** — they work as a real team. See `roles/_team-protocol.md`.
+All roles are **interconnected** — they work as a real team. See `.maxxy-agent/roles/_team-protocol.md`.
 
 - **Before work:** Read `team-memory.txt` in the project root for shared context
 - **During work:** Consult/delegate to other roles when crossing domain boundaries
@@ -65,7 +65,7 @@ All roles are **interconnected** — they work as a real team. See `roles/_team-
 
 ## Tools
 
-Practical references, scaffolders, and audit tools in `tools/`. Read a tool file to use it.
+Practical references, scaffolders, and audit tools in `.maxxy-agent/tools/`. Read a tool file to use it.
 
 | Category | Tools |
 |----------|-------|
@@ -84,7 +84,7 @@ When the user's request matches a skill pattern, activate it:
 - Architecture decisions → `/plan`
 - Task breakdown → `/ticket`
 - Complex multi-file features → `/autoplan`
-- Research tools/libraries/APIs → `/research`
+- Research .maxxy-agent/tools/libraries/APIs → `/research`
 - Full feature pipeline → `/team`
 - Frontend work → `/frontend-dev`
 - Backend/API work → `/backend-dev`

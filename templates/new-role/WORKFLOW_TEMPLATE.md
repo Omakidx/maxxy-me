@@ -4,9 +4,9 @@ description: Activate the {{ROLE_TITLE}} role. Use for {{COMMA_SEPARATED_USE_CAS
 
 # /{{ROLE_SLUG}} — {{ROLE_TITLE}}
 
-Activate this role by reading and following `roles/{{ROLE_SLUG}}.md`.
+Activate this role by reading and following `.maxxy-agent/roles/{{ROLE_SLUG}}.md`.
 
-1. Read the full role definition from `roles/{{ROLE_SLUG}}.md`.
+1. Read the full role definition from `.maxxy-agent/roles/{{ROLE_SLUG}}.md`.
 2. Adopt the **{{ROLE_TITLE}}** persona, decision lens, canonical patterns, and anti-pattern radar.
 3. Assess the user's requirements ({{KEY_ASSESSMENT_AREAS}}).
 4. Apply this role to the user's current request.

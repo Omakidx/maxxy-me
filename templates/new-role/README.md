@@ -7,11 +7,11 @@ Use this template to create a new specialist role for maxxy-agent.
 1. **Copy the templates:**
    ```bash
    # Replace <role-name> with your role slug (e.g., "redis-expert", "aws-architect")
-   cp templates/new-role/ROLE_TEMPLATE.md roles/<role-name>.md
-   cp templates/new-role/WORKFLOW_TEMPLATE.md .windsurf/workflows/<role-name>.md
+   cp .maxxy-agent/templates/new-role/ROLE_TEMPLATE.md .maxxy-agent/roles/<role-name>.md
+   cp .maxxy-agent/templates/new-role/WORKFLOW_TEMPLATE.md .windsurf/workflows/<role-name>.md
    ```
 
-2. **Fill in the role definition** (`roles/<role-name>.md`):
+2. **Fill in the role definition** (`.maxxy-agent/roles/<role-name>.md`):
    - Replace all `{{PLACEHOLDERS}}` with your role-specific content
    - Follow the section guide in the template comments
    - Delete the `<!-- ... -->` comments when done
@@ -31,7 +31,7 @@ Use this template to create a new specialist role for maxxy-agent.
 
 | File | Purpose |
 |------|---------|
-| `ROLE_TEMPLATE.md` | Full role definition template (goes in `roles/`) |
+| `ROLE_TEMPLATE.md` | Full role definition template (goes in `.maxxy-agent/roles/`) |
 | `WORKFLOW_TEMPLATE.md` | Workflow wrapper template (goes in `.windsurf/workflows/`) |
 | `RESEARCH_GUIDE.md` | How to research a domain before writing the role |
 | `CHECKLIST.md` | Quality checklist before finalizing a new role |
@@ -43,5 +43,5 @@ Use this template to create a new specialist role for maxxy-agent.
 - **Trigger:** `/<role-slug>` (e.g., `/redis-expert`)
 - **Role title:** Title Case (e.g., `Senior Redis Engineer`)
 - **File locations:**
-  - `roles/<role-slug>.md`
+  - `.maxxy-agent/roles/<role-slug>.md`
   - `.windsurf/workflows/<role-slug>.md`

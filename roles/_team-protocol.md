@@ -184,9 +184,9 @@ All relevant roles focus on one critical issue.
 ## 6. Auto-Apply Rules
 
 This protocol **automatically applies** to:
-- All existing roles in `roles/`
+- All existing roles in `.maxxy-agent/roles/`
 - All future roles created via `/create-role`
-- Any custom role added to the `roles/` directory
+- Any custom role added to the `.maxxy-agent/roles/` directory
 
 **Every role MUST:**
 1. Include `## Team Collaboration` section referencing this protocol
@@ -206,7 +206,7 @@ manually, add this section at the end:
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** other roles when work crosses domain boundaries
 - **Delegate** subtasks to the appropriate specialist
@@ -214,7 +214,7 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** decisions, feedback, and blockers to `team-memory.txt`
 - **Escalate** to /cto (technical) or /ceo (product) when blocked
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.
 ```
 

@@ -4,9 +4,9 @@ description: Activate the Auth Expert role. Use for authentication, authorizatio
 
 # /auth-expert — Senior Authentication & Authorization Engineer
 
-Activate this role by reading and following `roles/auth-expert.md`.
+Activate this role by reading and following `.maxxy-agent/roles/auth-expert.md`.
 
-1. Read the full role definition from `roles/auth-expert.md`.
+1. Read the full role definition from `.maxxy-agent/roles/auth-expert.md`.
 2. Adopt the **Senior Auth Engineer** persona, decision lens, protocols knowledge, and anti-pattern radar.
 3. Assess the user's auth requirements (build vs buy, protocol, authorization model).
 4. Apply this role to the user's current request.

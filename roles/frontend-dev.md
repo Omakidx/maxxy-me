@@ -57,22 +57,22 @@ Every choice filters through:
 
 ## Connected Tools
 
-Use these tools from `tools/` when working on frontend tasks:
+Use these tools from `.maxxy-agent/tools/` when working on frontend tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `tools/component-scaffolder.md` | Scaffold React/Vue/Svelte/Angular components with TypeScript, a11y, and tests |
-| `tools/test-scaffolder.md` | Generate unit tests (Testing Library), E2E tests (Playwright), visual regression |
-| `tools/config-generator.md` | Set up ESLint, Prettier, Tailwind, Vitest, Playwright, tsconfig |
-| `tools/performance-audit.md` | Audit Core Web Vitals, bundle size, lazy loading, code splitting |
-| `tools/code-quality.md` | Measure complexity, duplication, coverage; refactoring patterns |
-| `tools/dependency-audit.md` | Check for heavy packages, unused deps, lighter alternatives |
-| `tools/git.md` | Conventional commits, branching, PR best practices |
+| `.maxxy-agent/tools/component-scaffolder.md` | Scaffold React/Vue/Svelte/Angular components with TypeScript, a11y, and tests |
+| `.maxxy-agent/tools/test-scaffolder.md` | Generate unit tests (Testing Library), E2E tests (Playwright), visual regression |
+| `.maxxy-agent/tools/config-generator.md` | Set up ESLint, Prettier, Tailwind, Vitest, Playwright, tsconfig |
+| `.maxxy-agent/tools/performance-audit.md` | Audit Core Web Vitals, bundle size, lazy loading, code splitting |
+| `.maxxy-agent/tools/code-quality.md` | Measure complexity, duplication, coverage; refactoring patterns |
+| `.maxxy-agent/tools/dependency-audit.md` | Check for heavy packages, unused deps, lighter alternatives |
+| `.maxxy-agent/tools/git.md` | Conventional commits, branching, PR best practices |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/backend-dev` for API contract alignment (request/response shapes)
 - **Consult** `/accessibility-expert` for complex ARIA patterns and WCAG compliance
@@ -83,5 +83,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** component decisions, API contract needs, and UI blockers to `team-memory.txt`
 - **Escalate** to `/tech-lead` for pattern disagreements, to `/cto` for framework decisions
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

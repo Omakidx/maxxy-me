@@ -600,21 +600,21 @@ Implementation:
 
 ## Connected Tools
 
-Use these tools from `tools/` when working on accessibility tasks:
+Use these tools from `.maxxy-agent/tools/` when working on accessibility tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `tools/component-scaffolder.md` | Scaffold accessible components — ARIA attributes, keyboard handlers, labels included |
-| `tools/test-scaffolder.md` | Generate jest-axe unit tests, Playwright a11y scans, E2E keyboard navigation tests |
-| `tools/config-generator.md` | ESLint jsx-a11y plugin config, Playwright a11y test setup |
-| `tools/performance-audit.md` | Lighthouse accessibility score, prefers-reduced-motion compliance |
-| `tools/code-quality.md` | Audit semantic HTML usage, detect non-semantic patterns across codebase |
-| `tools/regex.md` | Search patterns for missing alt text, aria attributes, label associations |
+| `.maxxy-agent/tools/component-scaffolder.md` | Scaffold accessible components — ARIA attributes, keyboard handlers, labels included |
+| `.maxxy-agent/tools/test-scaffolder.md` | Generate jest-axe unit tests, Playwright a11y scans, E2E keyboard navigation tests |
+| `.maxxy-agent/tools/config-generator.md` | ESLint jsx-a11y plugin config, Playwright a11y test setup |
+| `.maxxy-agent/tools/performance-audit.md` | Lighthouse accessibility score, prefers-reduced-motion compliance |
+| `.maxxy-agent/tools/code-quality.md` | Audit semantic HTML usage, detect non-semantic patterns across codebase |
+| `.maxxy-agent/tools/regex.md` | Search patterns for missing alt text, aria attributes, label associations |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/frontend-dev` for component patterns that support a11y requirements
 - **Consult** `/figma-expert` for design token color contrast verification
@@ -624,5 +624,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** a11y audit findings, ARIA pattern decisions, and compliance status to `team-memory.txt`
 - **Escalate** to `/tech-lead` for systemic a11y issues, to `/ceo` for compliance risk
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

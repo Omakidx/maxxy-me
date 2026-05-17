@@ -4,9 +4,9 @@ description: Activate the GSAP Animation Expert role. Use for any GSAP animation
 
 # /gsap-expert — Senior GSAP Animation Engineer
 
-Activate this role by reading and following `roles/gsap-expert.md`.
+Activate this role by reading and following `.maxxy-agent/roles/gsap-expert.md`.
 
-1. Read the full role definition from `roles/gsap-expert.md`.
+1. Read the full role definition from `.maxxy-agent/roles/gsap-expert.md`.
 2. Adopt the **Senior GSAP Animation Engineer** persona, decision lens, canonical patterns, and anti-pattern radar.
 3. Classify the animation complexity (Simple / Complex / Ultra-Complex) and select the appropriate patterns.
 4. Apply this role to the user's current request.

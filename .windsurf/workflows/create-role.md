@@ -16,7 +16,7 @@ Ask the user (or infer from context):
 
 ## Step 2: Research the Domain
 
-Read the research guide: `templates/new-role/RESEARCH_GUIDE.md`
+Read the research guide: `.maxxy-agent/templates/new-role/RESEARCH_GUIDE.md`
 
 Run `/research super-deep <domain topic>` to gather:
 - Official documentation and getting started guides
@@ -30,9 +30,9 @@ Target: **10-20 sources** for a comprehensive role.
 
 ## Step 3: Create the Role Definition
 
-1. Read the role template: `templates/new-role/ROLE_TEMPLATE.md`
-2. Read the examples file: `templates/new-role/EXAMPLES.md`
-3. Create `roles/<role-slug>.md` using the template structure
+1. Read the role template: `.maxxy-agent/templates/new-role/ROLE_TEMPLATE.md`
+2. Read the examples file: `.maxxy-agent/templates/new-role/EXAMPLES.md`
+3. Create `.maxxy-agent/roles/<role-slug>.md` using the template structure
 4. Fill every section with research-backed content:
    - **Persona:** Specific seniority, mental models, personality
    - **Expertise:** 5-10+ areas with specific tools and concepts
@@ -48,7 +48,7 @@ Target: **10-20 sources** for a comprehensive role.
 
 **REQUIRED** — Every role must be interconnected with the team.
 
-1. Read `roles/_team-protocol.md` to understand the collaboration system
+1. Read `.maxxy-agent/roles/_team-protocol.md` to understand the collaboration system
 2. Ensure the role file includes a `## Team Collaboration` section (from template)
 3. Customize the generic collaboration bullets with role-specific connections:
    - Identify 2-4 roles this expert would naturally collaborate with
@@ -56,30 +56,30 @@ Target: **10-20 sources** for a comprehensive role.
    - Define escalation paths (usually `/cto` for technical, `/ceo` for product)
    - Add veto power if applicable (e.g., security, QA)
 4. Remove the `<!-- TEAM COLLABORATION GUIDE -->` comment block from final file
-5. Add the new role to the Role Registry table in `roles/_team-protocol.md`
+5. Add the new role to the Role Registry table in `.maxxy-agent/roles/_team-protocol.md`
 
 ## Step 4: Create the Workflow Wrapper
 
-1. Read the workflow template: `templates/new-role/WORKFLOW_TEMPLATE.md`
+1. Read the workflow template: `.maxxy-agent/templates/new-role/WORKFLOW_TEMPLATE.md`
 2. Create `.windsurf/workflows/<role-slug>.md`
 3. Fill in: description, title, assessment areas
 
 ## Step 5: Register the Role
 
 Add the new role to both index files:
-- `AGENTS.md` — add row to Specialist Roles table: `| /slug | roles/slug.md | short description |`
+- `AGENTS.md` — add row to Specialist Roles table: `| /slug | .maxxy-agent/roles/slug.md | short description |`
 - `CLAUDE.md` — add row to Specialist Roles table: `| /slug | Role Title | short description |`
 
 ## Step 6: Quality Check
 
-Run through `templates/new-role/CHECKLIST.md` to verify:
+Run through `.maxxy-agent/templates/new-role/CHECKLIST.md` to verify:
 - All sections filled with domain-specific content
 - No placeholders or TODOs remaining
 - Code examples are real and copy-paste-ready
 - Anti-patterns are specific and actionable
 - Research sources are credited where applicable
 - **Team Collaboration section present** with role-specific connections (not generic)
-- **Role added to `roles/_team-protocol.md`** Role Registry table
+- **Role added to `.maxxy-agent/roles/_team-protocol.md`** Role Registry table
 - **No `<!-- comments -->` remaining** in Team Collaboration section
 
 ## Output

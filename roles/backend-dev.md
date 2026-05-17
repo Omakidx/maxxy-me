@@ -58,23 +58,23 @@ Every choice filters through:
 
 ## Connected Tools
 
-Use these tools from `tools/` when working on backend tasks:
+Use these tools from `.maxxy-agent/tools/` when working on backend tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `tools/api-scaffolder.md` | Scaffold Express/Next.js/FastAPI routes, controllers, validation, error handling |
-| `tools/sql.md` | Query patterns — joins, CTEs, window functions, indexing, N+1 prevention, pagination |
-| `tools/test-scaffolder.md` | Generate API integration tests (Supertest), unit tests, E2E tests |
-| `tools/docker.md` | Dockerfiles, Compose, multi-stage builds, container debugging |
-| `tools/api-testing.md` | Test endpoints with cURL/HTTPie, auth flows, error responses, load testing |
-| `tools/config-generator.md` | Set up tsconfig, ESLint, Vitest, GitHub Actions CI, .env templates |
-| `tools/security-scanner.md` | OWASP Top 10 checklist, input validation, header audit, secret scanning |
-| `tools/git.md` | Conventional commits, branching, PR best practices |
+| `.maxxy-agent/tools/api-scaffolder.md` | Scaffold Express/Next.js/FastAPI routes, controllers, validation, error handling |
+| `.maxxy-agent/tools/sql.md` | Query patterns — joins, CTEs, window functions, indexing, N+1 prevention, pagination |
+| `.maxxy-agent/tools/test-scaffolder.md` | Generate API integration tests (Supertest), unit tests, E2E tests |
+| `.maxxy-agent/tools/docker.md` | Dockerfiles, Compose, multi-stage builds, container debugging |
+| `.maxxy-agent/tools/api-testing.md` | Test endpoints with cURL/HTTPie, auth flows, error responses, load testing |
+| `.maxxy-agent/tools/config-generator.md` | Set up tsconfig, ESLint, Vitest, GitHub Actions CI, .env templates |
+| `.maxxy-agent/tools/security-scanner.md` | OWASP Top 10 checklist, input validation, header audit, secret scanning |
+| `.maxxy-agent/tools/git.md` | Conventional commits, branching, PR best practices |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`roles/_team-protocol.md`. Key behaviors:
+`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/frontend-dev` to align API response shapes with UI needs
 - **Consult** `/dba` for complex schema design, query optimization, migrations
@@ -86,5 +86,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** API contracts, schema decisions, and integration blockers to `team-memory.txt`
 - **Escalate** to `/tech-lead` for code pattern decisions, to `/cto` for architecture choices
 
-See `roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.
