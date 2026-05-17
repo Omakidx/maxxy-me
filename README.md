@@ -13,12 +13,13 @@ A portable AI agent system that turns any IDE's AI into a **team of interconnect
 `cd` into your project, then run:
 
 ```bash
-git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-agent && /tmp/maxxy-agent/setup.sh . windsurf && rm -rf /tmp/maxxy-agent
+git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-agent && /tmp/maxxy-agent/setup.sh . && rm -rf /tmp/maxxy-agent
 ```
 
-Replace `windsurf` with your IDE: `windsurf`, `cursor`, `claude`, `codex`, `copilot`, `opencode`, or `all`.
+That's it. Copy, paste, done. Works with any IDE.
 
-Everything installs into a single `.maxxy-agent/` folder. Only your IDE's config files go to the project root.
+- Core content (skills, roles, tools, templates) → `.maxxy-agent/` (hidden folder)
+- IDE configs → project root (dotfiles — hidden by default)
 
 ### Option 2: Reusable Global Install
 
@@ -31,13 +32,17 @@ git clone https://github.com/Omakidx/maxxy-me.git ~/.maxxy-agent
 Then for each project:
 
 ```bash
-~/.maxxy-agent/setup.sh /path/to/your/project windsurf
+~/.maxxy-agent/setup.sh /path/to/your/project
 ```
 
-### Activate a Different IDE Later
+### Single IDE Only (Optional)
+
+If you only want configs for one IDE at root:
 
 ```bash
-.maxxy-agent/setup.sh . cursor
+setup.sh . windsurf    # Only Windsurf configs at root
+setup.sh . cursor      # Only Cursor configs at root
+setup.sh . minimal     # No IDE configs at root (.maxxy-agent/ only)
 ```
 
 No dependencies. No API keys. No build step. Just files.

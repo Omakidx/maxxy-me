@@ -3,30 +3,30 @@
 # Maxxy-Agent Setup — Install into any project
 # Usage: ./setup.sh <target-directory> [ide]
 #
-# Everything installs into .maxxy-agent/ to keep your project clean.
-# Specify your IDE to also activate config files at project root.
+# Core content (skills, roles, tools, templates) → .maxxy-agent/
+# IDE configs → project root (so slash commands work out of the box)
 #
 # Examples:
-#   ./setup.sh .                    # Install .maxxy-agent/ only (no root files)
-#   ./setup.sh . windsurf           # + Windsurf configs at root
-#   ./setup.sh . cursor             # + Cursor configs at root
-#   ./setup.sh . all                # + All IDE configs at root
-#   ./setup.sh ~/my-project windsurf
+#   ./setup.sh .                    # Full install (all IDE configs at root)
+#   ./setup.sh . windsurf           # Only Windsurf configs at root
+#   ./setup.sh . cursor             # Only Cursor configs at root
+#   ./setup.sh . minimal            # .maxxy-agent/ only (no root configs)
+#   ./setup.sh ~/my-project
 #
-# IDEs: windsurf, cursor, claude, codex, copilot, opencode, all
+# IDEs: windsurf, cursor, claude, codex, copilot, opencode, all, minimal
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 TARGET="${1:-.}"
-IDE="${2:-}"
+IDE="${2:-all}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "╔══════════════════════════════════════════╗"
-echo "║       MAXXY-AGENT INSTALLER v2.0.0       ║"
+echo "║       MAXXY-AGENT INSTALLER v2.1.0       ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 echo "  Target: $TARGET"
-[ -n "$IDE" ] && echo "  IDE:    $IDE"
+echo "  IDE:    $IDE"
 echo ""
 
 mkdir -p "$TARGET/.maxxy-agent"
@@ -95,7 +95,7 @@ activate_opencode() {
   copy_if_missing "$SCRIPT_DIR/.opencode" "$TARGET/.opencode"
 }
 
-if [ -n "$IDE" ]; then
+if [ "$IDE" != "minimal" ]; then
   echo ""
   echo "Activating IDE configs → project root"
   echo ""
@@ -117,7 +117,7 @@ if [ -n "$IDE" ]; then
       ;;
     *)
       echo "  ERROR: Unknown IDE '$IDE'"
-      echo "  Valid: windsurf, cursor, claude, codex, copilot, opencode, all"
+      echo "  Valid: windsurf, cursor, claude, codex, copilot, opencode, all, minimal"
       exit 1
       ;;
   esac
@@ -128,15 +128,7 @@ echo ""
 echo "═══════════════════════════════════════════"
 echo "  DONE. Maxxy-Agent installed to: $TARGET"
 echo ""
-if [ -n "$IDE" ]; then
-  echo "  IDE activated: $IDE"
-else
-  echo "  No IDE activated yet. To activate:"
-  echo "    .maxxy-agent/setup.sh . windsurf"
-  echo "    .maxxy-agent/setup.sh . cursor"
-  echo "    .maxxy-agent/setup.sh . claude"
-  echo "    .maxxy-agent/setup.sh . all"
-fi
+echo "  IDE activated: $IDE"
 echo ""
 echo "  Quick start: /plan, /debug, /review, /security, /ship"
 echo "  All roles:   /frontend-dev, /backend-dev, /devops, /dba, etc."
