@@ -41,19 +41,11 @@ EXAMPLES:
   # Install with specific IDE:
   ./setup.sh . cursor
 
-  # Core only (no IDE configs at root):
-  ./setup.sh . minimal
-
-  # Re-activate a different IDE later:
-  .maxxy-me/setup.sh . windsurf
-
-  # Uninstall — remove all maxxy-me files from project:
-  .maxxy-me/setup.sh --uninstall
-
-FLAGS:
-  --help, -h         Show this help message
-  --version, -v      Show version number
-  --uninstall        Remove all maxxy-me files from the project
+CLI COMMANDS (available after install):
+  maxxy-me uninstall          Remove all maxxy-me files from the project
+  maxxy-me activate <ide>     Switch to a different IDE config
+  maxxy-me --help             Show this help message
+  maxxy-me --version          Show version number
 EOF
   exit 0
 fi
@@ -119,6 +111,13 @@ if [[ "${1:-}" == "--uninstall" ]]; then
   if [ -d "$PROJECT_ROOT/.maxxy-me" ]; then
     rm -rf "$PROJECT_ROOT/.maxxy-me"
     echo "  REMOVE  $PROJECT_ROOT/.maxxy-me"
+  fi
+
+  # Remove global CLI if it exists and points to this project
+  CLI_PATH="$HOME/.local/bin/maxxy-me"
+  if [ -f "$CLI_PATH" ]; then
+    rm -f "$CLI_PATH"
+    echo "  REMOVE  $CLI_PATH (global CLI)"
   fi
 
   echo ""
@@ -274,6 +273,64 @@ else
   # Copy setup.sh itself
   cp "$SRC_DIR/setup.sh" "$TARGET/.maxxy-me/setup.sh"
   chmod +x "$TARGET/.maxxy-me/setup.sh"
+
+  # Install global CLI → ~/.local/bin/maxxy-me
+  mkdir -p "$HOME/.local/bin"
+  cat > "$HOME/.local/bin/maxxy-me" <<'CLIMEOF'
+#!/usr/bin/env bash
+# Maxxy-Agent CLI — finds nearest .maxxy-me/ and delegates
+find_project_root() {
+  local dir="$PWD"
+  while [ "$dir" != "/" ]; do
+    if [ -d "$dir/.maxxy-me" ]; then
+      echo "$dir"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+PROJECT_ROOT="$(find_project_root)" || {
+  echo "Error: No .maxxy-me/ found in current or parent directories."
+  echo "Run this from inside a project with maxxy-me installed."
+  exit 1
+}
+
+case "${1:-}" in
+  uninstall)
+    "$PROJECT_ROOT/.maxxy-me/setup.sh" --uninstall
+    ;;
+  activate)
+    "$PROJECT_ROOT/.maxxy-me/setup.sh" "$PROJECT_ROOT" "${2:-auto}"
+    ;;
+  --version|-v)
+    "$PROJECT_ROOT/.maxxy-me/setup.sh" --version
+    ;;
+  --help|-h|"")
+    "$PROJECT_ROOT/.maxxy-me/setup.sh" --help
+    ;;
+  *)
+    echo "Unknown command: $1"
+    echo ""
+    echo "Usage:"
+    echo "  maxxy-me uninstall          Remove maxxy-me from this project"
+    echo "  maxxy-me activate <ide>     Switch IDE config (cursor, windsurf, etc.)"
+    echo "  maxxy-me --help             Show help"
+    echo "  maxxy-me --version          Show version"
+    exit 1
+    ;;
+esac
+CLIMEOF
+  chmod +x "$HOME/.local/bin/maxxy-me"
+  echo "  CLI   ~/.local/bin/maxxy-me installed"
+
+  # Check if ~/.local/bin is in PATH
+  if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    echo ""
+    echo "  NOTE: Add ~/.local/bin to your PATH if not already:"
+    echo "        export PATH=\"\$HOME/.local/bin:\$PATH\""
+  fi
 fi
 
 # ─── IDE Activation (only the detected/specified IDE) ─────────────────────
@@ -347,7 +404,8 @@ echo "  Quick start: /plan, /debug, /review, /security, /ship"
 echo "  All roles:   /frontend-dev, /backend-dev, /devops, /dba, etc."
 if [ "$IDE" = "minimal" ]; then
   echo ""
-  echo "  Activate an IDE later:"
-  echo "    .maxxy-me/setup.sh . <ide>"
+  echo "  Activate an IDE:     maxxy-me activate <ide>"
 fi
+echo "  Switch IDE:          maxxy-me activate <ide>"
+echo "  Uninstall:           maxxy-me uninstall"
 echo "═══════════════════════════════════════════"

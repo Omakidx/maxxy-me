@@ -26,19 +26,17 @@ setup.sh . windsurf    # Force Windsurf config
 setup.sh . minimal     # .maxxy-me/ only (no IDE config at root)
 ```
 
-### Switch IDE Later
+### CLI Commands (After Install)
+
+After installation, the `maxxy-me` CLI is available globally (make sure `~/.local/bin` is in your PATH).
 
 ```bash
-.maxxy-me/setup.sh . windsurf
+maxxy-me activate windsurf    # Switch to a different IDE config
+maxxy-me uninstall            # Completely remove from project
+maxxy-me --help               # Show help options
 ```
 
-### Uninstall
-
-```bash
-.maxxy-me/setup.sh --uninstall
-```
-
-Clean removal — removes `.maxxy-me/`, IDE config at root, and `team-memory.txt`.
+Clean removal (`maxxy-me uninstall`) removes `.maxxy-me/`, IDE configs at root, and `team-memory.txt`.
 
 No dependencies. No API keys. No build step. Just files.
 
