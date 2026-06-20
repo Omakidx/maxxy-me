@@ -47,6 +47,16 @@ setup.sh . minimal     # No IDE configs at root (.maxxy-agent/ only)
 
 No dependencies. No API keys. No build step. Just files.
 
+### Uninstall
+
+To completely remove Maxxy-Agent from your project:
+
+```bash
+.maxxy-agent/setup.sh --uninstall
+```
+
+This removes `.maxxy-agent/`, all IDE configs at root (`.windsurfrules`, `.cursorrules`, `CLAUDE.md`, `AGENTS.md`, etc.), and `team-memory.txt`. Empty parent directories (`.windsurf/`, `.cursor/`, `.github/`) are cleaned up automatically.
+
 ---
 
 ## IDE Compatibility
