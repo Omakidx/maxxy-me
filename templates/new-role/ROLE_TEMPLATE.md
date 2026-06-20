@@ -211,7 +211,7 @@ Every {{DOMAIN}} decision filters through:
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
+`.maxxy-me/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** other roles when work crosses domain boundaries
 - **Delegate** subtasks to the appropriate specialist
@@ -228,8 +228,8 @@ This role follows the **Team Collaboration Protocol** defined in
   - Add any veto power this role has (if applicable)
 
   This section enables the interconnected team system defined in
-  .maxxy-agent/roles/_team-protocol.md. Every role MUST include it.
+  .maxxy-me/roles/_team-protocol.md. Every role MUST include it.
 -->
 
-See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-me/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

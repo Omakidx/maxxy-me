@@ -16,59 +16,46 @@ A portable AI agent system that turns any IDE's AI into a **team of interconnect
 git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-agent && /tmp/maxxy-agent/setup.sh . && rm -rf /tmp/maxxy-agent
 ```
 
-That's it. Copy, paste, done. Works with any IDE.
+That's it. One folder: `.maxxy-me/`. Your IDE is auto-detected — only its config is placed at root.
 
-- Core content (skills, roles, tools, templates) → `.maxxy-agent/` (hidden folder)
-- IDE configs → project root (dotfiles — hidden by default)
-
-### Option 2: Reusable Global Install
-
-Install once, use in any project:
+### Specify an IDE (Optional)
 
 ```bash
-git clone https://github.com/Omakidx/maxxy-me.git ~/.maxxy-agent
+setup.sh . cursor      # Force Cursor config
+setup.sh . windsurf    # Force Windsurf config
+setup.sh . minimal     # .maxxy-me/ only (no IDE config at root)
 ```
 
-Then for each project:
+### Switch IDE Later
 
 ```bash
-~/.maxxy-agent/setup.sh /path/to/your/project
+.maxxy-me/setup.sh . windsurf
 ```
-
-### Single IDE Only (Optional)
-
-If you only want configs for one IDE at root:
-
-```bash
-setup.sh . windsurf    # Only Windsurf configs at root
-setup.sh . cursor      # Only Cursor configs at root
-setup.sh . minimal     # No IDE configs at root (.maxxy-agent/ only)
-```
-
-No dependencies. No API keys. No build step. Just files.
 
 ### Uninstall
 
-To completely remove Maxxy-Agent from your project:
-
 ```bash
-.maxxy-agent/setup.sh --uninstall
+.maxxy-me/setup.sh --uninstall
 ```
 
-This removes `.maxxy-agent/`, all IDE configs at root (`.windsurfrules`, `.cursorrules`, `CLAUDE.md`, `AGENTS.md`, etc.), and `team-memory.txt`. Empty parent directories (`.windsurf/`, `.cursor/`, `.github/`) are cleaned up automatically.
+Clean removal — removes `.maxxy-me/`, IDE config at root, and `team-memory.txt`.
+
+No dependencies. No API keys. No build step. Just files.
 
 ---
 
 ## IDE Compatibility
 
-| IDE | Config File(s) | Auto-Loads |
-|-----|---------------|------------|
-| **Windsurf** | `.windsurfrules` + `.windsurf/workflows/*.md` | Yes — rules + slash commands |
-| **Cursor** | `.cursorrules` + `.cursor/rules/*.mdc` | Yes — all interactions |
-| **Claude Code** | `CLAUDE.md` | Yes — session-wide |
-| **OpenAI Codex** | `AGENTS.md` + `.codex/instructions.md` | Yes — per task |
-| **GitHub Copilot** | `.github/copilot-instructions.md` | Yes — chat + inline |
-| **OpenCode** | `.opencode/rules.md` | Yes — all interactions |
+The installer auto-detects your IDE and places only the required config at root.
+
+| IDE | Detection Method | Config at Root | Everything Else |
+|-----|-----------------|----------------|----------------|
+| **Cursor** | `CURSOR_*` env vars, `.cursorrules` | `.cursorrules` + `.cursor/rules/` | `.maxxy-me/` |
+| **Windsurf** | `WINDSURF_*` env vars, `.windsurfrules` | `.windsurfrules` + `.windsurf/` | `.maxxy-me/` |
+| **Claude Code** | `claude` CLI in PATH | `CLAUDE.md` | `.maxxy-me/` |
+| **OpenAI Codex** | `codex` CLI in PATH | `AGENTS.md` + `.codex/` | `.maxxy-me/` |
+| **GitHub Copilot** | `TERM_PROGRAM=vscode` | `.github/copilot-instructions.md` | `.maxxy-me/` |
+| **OpenCode** | `opencode` CLI in PATH | `.opencode/rules.md` | `.maxxy-me/` |
 
 All IDEs get the same capabilities. Slash commands work everywhere.
 
@@ -260,7 +247,7 @@ Stage 7: SHIP         → /devops        → Deployed, verified
 
 ## Tools (Developer Utilities)
 
-Reference guides, scaffolders, and audit procedures in `.maxxy-agent/tools/`.
+Reference guides, scaffolders, and audit procedures in `.maxxy-me/tools/`.
 
 | Category | Tools | Purpose |
 |----------|-------|---------|
@@ -274,11 +261,10 @@ Reference guides, scaffolders, and audit procedures in `.maxxy-agent/tools/`.
 
 ```
 your-project/
-├── .windsurfrules               # ← Only if you ran: setup.sh . windsurf
-├── .windsurf/                   #    (IDE-specific, placed at root on activation)
+├── .cursorrules                 # ← Only YOUR IDE's config (auto-detected)
 │
-└── .maxxy-agent/                # ← Everything lives here (one hidden folder)
-    ├── setup.sh                 # Re-run to activate another IDE
+└── .maxxy-me/                   # ← Everything lives here (one folder)
+    ├── setup.sh                 # Re-run to switch IDE or uninstall
     │
     ├── skills/                  # Step-by-step skill protocols
     │   ├── planner.md           # /plan — strategic decomposition
@@ -307,12 +293,7 @@ your-project/
     │   ├── new-role/            # Role creation templates
     │   └── team-memory.txt      # Team memory template
     │
-    ├── .windsurf/               # IDE configs (source of truth, stored here)
-    ├── .cursor/                 # Activated to root via: setup.sh . <ide>
-    ├── .codex/, .opencode/, .github/
-    ├── CLAUDE.md, AGENTS.md
-    ├── .windsurfrules, .cursorrules
-    └── ...
+    └── ide-configs/             # All IDE templates (for switching later)
 ```
 
 ---
@@ -363,23 +344,23 @@ Agent detects "virtual list" as a pattern needing research → runs `/research d
 
 ## Creating New Roles
 
-Use the `/create-role` command or manually create a file in `.maxxy-agent/roles/`:
+Use the `/create-role` command or manually create a file in `.maxxy-me/roles/`:
 
 ```bash
 # Automated (with deep research)
 /create-role redis-expert
 
 # Manual
-touch .maxxy-agent/roles/your-role.md
+touch .maxxy-me/roles/your-role.md
 ```
 
 Every new role automatically inherits:
 - Team Collaboration Protocol (consult/delegate/escalate)
 - Pre-Implementation Research (auto-research before unfamiliar work)
 - Team Memory integration (read/write shared context)
-- Tool access (all tools in `.maxxy-agent/tools/`)
+- Tool access (all tools in `.maxxy-me/tools/`)
 
-Use `.maxxy-agent/templates/new-role/ROLE_TEMPLATE.md` as the starting structure.
+Use `.maxxy-me/templates/new-role/ROLE_TEMPLATE.md` as the starting structure.
 
 ---
 

@@ -27,12 +27,12 @@ No fix without evidence:
 
 ## Available Skills
 
-See `.maxxy-agent/skills/` directory for full protocols:
-- `.maxxy-agent/skills/planner.md` — Strategic decomposition
-- `.maxxy-agent/skills/debugger.md` — Root cause investigation
-- `.maxxy-agent/skills/reviewer.md` — Staff-level code review
-- `.maxxy-agent/skills/security-auditor.md` — OWASP + STRIDE audit
-- `.maxxy-agent/skills/shipper.md` — Release pipeline
+See `.maxxy-me/skills/` directory for full protocols:
+- `.maxxy-me/skills/planner.md` — Strategic decomposition
+- `.maxxy-me/skills/debugger.md` — Root cause investigation
+- `.maxxy-me/skills/reviewer.md` — Staff-level code review
+- `.maxxy-me/skills/security-auditor.md` — OWASP + STRIDE audit
+- `.maxxy-me/skills/shipper.md` — Release pipeline
 
 ## Guardrails
 

@@ -503,22 +503,22 @@ Gotchas:
 
 ## Connected Tools
 
-Use these tools from `.maxxy-agent/tools/` when working on Neon database tasks:
+Use these tools from `.maxxy-me/tools/` when working on Neon database tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `.maxxy-agent/tools/sql.md` | Query patterns — CTEs, window functions, indexing, pagination, batch operations |
-| `.maxxy-agent/tools/api-scaffolder.md` | ORM setup (Drizzle/Prisma), API routes with database integration |
-| `.maxxy-agent/tools/docker.md` | Local development Compose configs, connection to Neon from containers |
-| `.maxxy-agent/tools/performance-audit.md` | pg_stat_statements, egress profiling, slow query analysis |
-| `.maxxy-agent/tools/config-generator.md` | .env templates for Neon connection strings, CI pipeline with migrations |
-| `.maxxy-agent/tools/dependency-audit.md` | Evaluate Neon driver packages, serverless driver compatibility |
-| `.maxxy-agent/tools/cli-productivity.md` | Neon CLI patterns, psql shortcuts, jq for API responses |
+| `.maxxy-me/tools/sql.md` | Query patterns — CTEs, window functions, indexing, pagination, batch operations |
+| `.maxxy-me/tools/api-scaffolder.md` | ORM setup (Drizzle/Prisma), API routes with database integration |
+| `.maxxy-me/tools/docker.md` | Local development Compose configs, connection to Neon from containers |
+| `.maxxy-me/tools/performance-audit.md` | pg_stat_statements, egress profiling, slow query analysis |
+| `.maxxy-me/tools/config-generator.md` | .env templates for Neon connection strings, CI pipeline with migrations |
+| `.maxxy-me/tools/dependency-audit.md` | Evaluate Neon driver packages, serverless driver compatibility |
+| `.maxxy-me/tools/cli-productivity.md` | Neon CLI patterns, psql shortcuts, jq for API responses |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
+`.maxxy-me/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/dba` for general database design principles and query optimization
 - **Consult** `/backend-dev` for ORM integration and connection patterns
@@ -528,5 +528,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** Neon configuration decisions, branching strategy, and migration plans to `team-memory.txt`
 - **Escalate** to `/cto` for database platform decisions, to `/dba` for complex schema design
 
-See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-me/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

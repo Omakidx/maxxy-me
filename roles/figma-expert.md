@@ -235,20 +235,20 @@ Status: DONE / DONE_WITH_CONCERNS / BLOCKED
 
 ## Connected Tools
 
-Use these tools from `.maxxy-agent/tools/` when working on design-to-code tasks:
+Use these tools from `.maxxy-me/tools/` when working on design-to-code tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `.maxxy-agent/tools/component-scaffolder.md` | Scaffold React/Vue/Svelte components matching Figma structure |
-| `.maxxy-agent/tools/config-generator.md` | Tailwind theme config, CSS custom properties setup, font loading |
-| `.maxxy-agent/tools/performance-audit.md` | Image optimization, font loading, Core Web Vitals after implementation |
-| `.maxxy-agent/tools/code-quality.md` | Component complexity, duplication detection across design system |
-| `.maxxy-agent/tools/git.md` | Conventional commits for design system changes |
+| `.maxxy-me/tools/component-scaffolder.md` | Scaffold React/Vue/Svelte components matching Figma structure |
+| `.maxxy-me/tools/config-generator.md` | Tailwind theme config, CSS custom properties setup, font loading |
+| `.maxxy-me/tools/performance-audit.md` | Image optimization, font loading, Core Web Vitals after implementation |
+| `.maxxy-me/tools/code-quality.md` | Component complexity, duplication detection across design system |
+| `.maxxy-me/tools/git.md` | Conventional commits for design system changes |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
+`.maxxy-me/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/frontend-dev` for component implementation patterns and framework constraints
 - **Consult** `/accessibility-expert` for color contrast and a11y in design tokens
@@ -258,5 +258,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** design token decisions, component specs, and design system changes to `team-memory.txt`
 - **Escalate** to `/ceo` for UX/brand decisions, to `/tech-lead` for design system architecture
 
-See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-me/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

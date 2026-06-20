@@ -3,21 +3,21 @@
 # Maxxy-Agent Setup — Install into any project
 # Usage: ./setup.sh <target-directory> [ide]
 #
-# Core content (skills, roles, tools, templates) → .maxxy-agent/
-# IDE configs → project root (so slash commands work out of the box)
+# Everything → .maxxy-me/ (single folder)
+# IDE config  → auto-detected or manually specified (only the relevant one)
 #
 # Examples:
-#   ./setup.sh .                    # Full install (all IDE configs at root)
-#   ./setup.sh . windsurf           # Only Windsurf configs at root
-#   ./setup.sh . cursor             # Only Cursor configs at root
-#   ./setup.sh . minimal            # .maxxy-agent/ only (no root configs)
-#   ./setup.sh ~/my-project
+#   ./setup.sh .                    # Auto-detect IDE, install only its config
+#   ./setup.sh . cursor             # Force Cursor config
+#   ./setup.sh . windsurf           # Force Windsurf config
+#   ./setup.sh . minimal            # .maxxy-me/ only (no IDE config at root)
+#   ./setup.sh . all                # All IDE configs (not recommended)
 #
 # IDEs: windsurf, cursor, claude, codex, copilot, opencode, all, minimal
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-VERSION="2.2.0"
+VERSION="3.0.0"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ─── Flags ─────────────────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ USAGE:
 
 ARGUMENTS:
   target-directory   Path to your project (use . for current directory)
-  ide                IDE to activate at project root (default: all)
+  ide                IDE to activate (default: auto-detect)
                      Options: windsurf, cursor, claude, codex, copilot,
                               opencode, all, minimal
 
@@ -38,25 +38,22 @@ EXAMPLES:
   # One-liner install (clone + install + cleanup):
   git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-agent && /tmp/maxxy-agent/setup.sh . && rm -rf /tmp/maxxy-agent
 
-  # Install into current project (all IDEs):
-  ./setup.sh .
-
-  # Install with only Cursor configs:
+  # Install with specific IDE:
   ./setup.sh . cursor
 
   # Core only (no IDE configs at root):
   ./setup.sh . minimal
 
-  # Re-activate an IDE later (from installed location):
-  .maxxy-agent/setup.sh . windsurf
+  # Re-activate a different IDE later:
+  .maxxy-me/setup.sh . windsurf
 
-  # Uninstall — remove all maxxy-agent files from project:
-  .maxxy-agent/setup.sh --uninstall
+  # Uninstall — remove all maxxy-me files from project:
+  .maxxy-me/setup.sh --uninstall
 
 FLAGS:
   --help, -h         Show this help message
   --version, -v      Show version number
-  --uninstall        Remove all maxxy-agent files from the project
+  --uninstall        Remove all maxxy-me files from the project
 EOF
   exit 0
 fi
@@ -67,8 +64,7 @@ if [[ "${1:-}" == "--version" || "${1:-}" == "-v" ]]; then
 fi
 
 if [[ "${1:-}" == "--uninstall" ]]; then
-  # Detect project root: if running from .maxxy-agent/, go up one level
-  if [[ "$SCRIPT_DIR" == */.maxxy-agent ]]; then
+  if [[ "$SCRIPT_DIR" == */.maxxy-me ]]; then
     PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
   else
     PROJECT_ROOT="${2:-.}"
@@ -85,7 +81,6 @@ if [[ "${1:-}" == "--uninstall" ]]; then
   echo "  Project: $PROJECT_ROOT"
   echo ""
 
-  # Remove IDE configs at project root
   for item in \
     "$PROJECT_ROOT/.windsurfrules" \
     "$PROJECT_ROOT/.cursorrules" \
@@ -98,7 +93,6 @@ if [[ "${1:-}" == "--uninstall" ]]; then
     fi
   done
 
-  # Remove IDE directories (only maxxy-agent-owned content)
   for dir in \
     "$PROJECT_ROOT/.windsurf/rules" \
     "$PROJECT_ROOT/.windsurf/workflows" \
@@ -112,7 +106,6 @@ if [[ "${1:-}" == "--uninstall" ]]; then
     fi
   done
 
-  # Clean up empty parent dirs left behind
   for parent in \
     "$PROJECT_ROOT/.windsurf" \
     "$PROJECT_ROOT/.cursor" \
@@ -123,10 +116,9 @@ if [[ "${1:-}" == "--uninstall" ]]; then
     fi
   done
 
-  # Remove .maxxy-agent/ itself (must be last — this script lives here)
-  if [ -d "$PROJECT_ROOT/.maxxy-agent" ]; then
-    rm -rf "$PROJECT_ROOT/.maxxy-agent"
-    echo "  REMOVE  $PROJECT_ROOT/.maxxy-agent"
+  if [ -d "$PROJECT_ROOT/.maxxy-me" ]; then
+    rm -rf "$PROJECT_ROOT/.maxxy-me"
+    echo "  REMOVE  $PROJECT_ROOT/.maxxy-me"
   fi
 
   echo ""
@@ -137,19 +129,93 @@ if [[ "${1:-}" == "--uninstall" ]]; then
 fi
 
 TARGET="${1:-.}"
-IDE="${2:-all}"
+IDE="${2:-auto}"
 
 # ─── Detect Context ────────────────────────────────────────────────────────
-# Are we running from an installed .maxxy-agent/ directory or from the repo?
-# If SCRIPT_DIR ends with .maxxy-agent, we're in "re-activation" mode.
 INSTALLED=false
-if [[ "$SCRIPT_DIR" == */.maxxy-agent ]]; then
+if [[ "$SCRIPT_DIR" == */.maxxy-me ]]; then
   INSTALLED=true
-  # Source of truth for IDE configs is the installed .maxxy-agent/ itself
   SRC_DIR="$SCRIPT_DIR"
 else
-  # Running from cloned repo (e.g., /tmp/maxxy-agent/setup.sh .)
   SRC_DIR="$SCRIPT_DIR"
+fi
+
+# Resolve TARGET to absolute path
+TARGET="$(cd "$TARGET" 2>/dev/null && pwd)" || {
+  echo "  ERROR: Target directory '$1' does not exist."
+  exit 1
+}
+
+# ─── Auto-Detect IDE ──────────────────────────────────────────────────────
+detect_ide() {
+  # 1. Check Cursor-specific env vars (Cursor is a VS Code fork)
+  if [ -n "${CURSOR_TRACE_DIR:-}" ] || [ -n "${CURSOR_CHANNEL:-}" ]; then
+    echo "cursor"
+    return
+  fi
+
+  # 2. Check Windsurf-specific env vars
+  if [ -n "${WINDSURF_TRACE_DIR:-}" ] || [ -n "${CODEIUM_TRACE_DIR:-}" ]; then
+    echo "windsurf"
+    return
+  fi
+
+  # 3. Check VS Code (GitHub Copilot) — TERM_PROGRAM=vscode
+  if [ "${TERM_PROGRAM:-}" = "vscode" ]; then
+    echo "copilot"
+    return
+  fi
+
+  # 4. Check for Claude Code CLI
+  if command -v claude &>/dev/null; then
+    echo "claude"
+    return
+  fi
+
+  # 5. Check for Codex CLI
+  if command -v codex &>/dev/null; then
+    echo "codex"
+    return
+  fi
+
+  # 6. Check for OpenCode CLI
+  if command -v opencode &>/dev/null; then
+    echo "opencode"
+    return
+  fi
+
+  # 7. Check existing IDE config files in target directory
+  if [ -e "$TARGET/.cursorrules" ] || [ -d "$TARGET/.cursor" ]; then
+    echo "cursor"
+    return
+  fi
+  if [ -e "$TARGET/.windsurfrules" ] || [ -d "$TARGET/.windsurf" ]; then
+    echo "windsurf"
+    return
+  fi
+  if [ -e "$TARGET/CLAUDE.md" ]; then
+    echo "claude"
+    return
+  fi
+  if [ -e "$TARGET/AGENTS.md" ] || [ -d "$TARGET/.codex" ]; then
+    echo "codex"
+    return
+  fi
+  if [ -d "$TARGET/.github" ] && [ -e "$TARGET/.github/copilot-instructions.md" ]; then
+    echo "copilot"
+    return
+  fi
+  if [ -d "$TARGET/.opencode" ]; then
+    echo "opencode"
+    return
+  fi
+
+  # 8. Fallback: minimal (no IDE config at root)
+  echo "minimal"
+}
+
+if [ "$IDE" = "auto" ]; then
+  IDE="$(detect_ide)"
 fi
 
 echo "╔══════════════════════════════════════════╗"
@@ -159,17 +225,11 @@ echo ""
 echo "  Target: $TARGET"
 echo "  IDE:    $IDE"
 if $INSTALLED; then
-  echo "  Mode:   Re-activation (from installed .maxxy-agent/)"
+  echo "  Mode:   Re-activation (from installed .maxxy-me/)"
 else
   echo "  Mode:   Fresh install"
 fi
 echo ""
-
-# Resolve TARGET to absolute path for safe comparisons
-TARGET="$(cd "$TARGET" 2>/dev/null && pwd)" || {
-  echo "  ERROR: Target directory '$1' does not exist."
-  exit 1
-}
 
 copy_if_missing() {
   local src="$1" dst="$2"
@@ -182,72 +242,75 @@ copy_if_missing() {
   fi
 }
 
-# ─── Core Package (always → .maxxy-agent/) ────────────────────────────────
+# ─── Core Package (always → .maxxy-me/) ───────────────────────────────────
 if $INSTALLED; then
   echo "Core package already installed — skipping."
   echo ""
 else
-  echo "Installing core package → .maxxy-agent/"
+  echo "Installing core package → .maxxy-me/"
   echo ""
 
-  mkdir -p "$TARGET/.maxxy-agent"
+  mkdir -p "$TARGET/.maxxy-me"
 
-  copy_if_missing "$SRC_DIR/skills" "$TARGET/.maxxy-agent/skills"
-  copy_if_missing "$SRC_DIR/roles" "$TARGET/.maxxy-agent/roles"
-  copy_if_missing "$SRC_DIR/tools" "$TARGET/.maxxy-agent/tools"
-  copy_if_missing "$SRC_DIR/templates" "$TARGET/.maxxy-agent/templates"
+  # Core content
+  copy_if_missing "$SRC_DIR/skills" "$TARGET/.maxxy-me/skills"
+  copy_if_missing "$SRC_DIR/roles" "$TARGET/.maxxy-me/roles"
+  copy_if_missing "$SRC_DIR/tools" "$TARGET/.maxxy-me/tools"
+  copy_if_missing "$SRC_DIR/templates" "$TARGET/.maxxy-me/templates"
 
-  # Store all IDE configs inside .maxxy-agent/ (source of truth)
-  copy_if_missing "$SRC_DIR/.windsurfrules" "$TARGET/.maxxy-agent/.windsurfrules"
-  copy_if_missing "$SRC_DIR/.windsurf" "$TARGET/.maxxy-agent/.windsurf"
-  copy_if_missing "$SRC_DIR/.cursorrules" "$TARGET/.maxxy-agent/.cursorrules"
-  copy_if_missing "$SRC_DIR/.cursor" "$TARGET/.maxxy-agent/.cursor"
-  copy_if_missing "$SRC_DIR/CLAUDE.md" "$TARGET/.maxxy-agent/CLAUDE.md"
-  copy_if_missing "$SRC_DIR/AGENTS.md" "$TARGET/.maxxy-agent/AGENTS.md"
-  copy_if_missing "$SRC_DIR/.codex" "$TARGET/.maxxy-agent/.codex"
-  copy_if_missing "$SRC_DIR/.github/copilot-instructions.md" "$TARGET/.maxxy-agent/.github/copilot-instructions.md"
-  copy_if_missing "$SRC_DIR/.opencode" "$TARGET/.maxxy-agent/.opencode"
+  # Store IDE config templates inside .maxxy-me/ (for re-activation)
+  mkdir -p "$TARGET/.maxxy-me/ide-configs"
+  cp -r "$SRC_DIR/.windsurfrules" "$TARGET/.maxxy-me/ide-configs/.windsurfrules" 2>/dev/null || true
+  cp -r "$SRC_DIR/.windsurf" "$TARGET/.maxxy-me/ide-configs/.windsurf" 2>/dev/null || true
+  cp -r "$SRC_DIR/.cursorrules" "$TARGET/.maxxy-me/ide-configs/.cursorrules" 2>/dev/null || true
+  cp -r "$SRC_DIR/.cursor" "$TARGET/.maxxy-me/ide-configs/.cursor" 2>/dev/null || true
+  cp -r "$SRC_DIR/CLAUDE.md" "$TARGET/.maxxy-me/ide-configs/CLAUDE.md" 2>/dev/null || true
+  cp -r "$SRC_DIR/AGENTS.md" "$TARGET/.maxxy-me/ide-configs/AGENTS.md" 2>/dev/null || true
+  cp -r "$SRC_DIR/.codex" "$TARGET/.maxxy-me/ide-configs/.codex" 2>/dev/null || true
+  mkdir -p "$TARGET/.maxxy-me/ide-configs/.github"
+  cp "$SRC_DIR/.github/copilot-instructions.md" "$TARGET/.maxxy-me/ide-configs/.github/copilot-instructions.md" 2>/dev/null || true
+  cp -r "$SRC_DIR/.opencode" "$TARGET/.maxxy-me/ide-configs/.opencode" 2>/dev/null || true
 
-  # Copy setup.sh itself so user can re-activate IDEs later
-  cp "$SRC_DIR/setup.sh" "$TARGET/.maxxy-agent/setup.sh"
-  chmod +x "$TARGET/.maxxy-agent/setup.sh"
+  # Copy setup.sh itself
+  cp "$SRC_DIR/setup.sh" "$TARGET/.maxxy-me/setup.sh"
+  chmod +x "$TARGET/.maxxy-me/setup.sh"
 fi
 
-# ─── IDE Activation (copies configs from .maxxy-agent/ to project root) ───
-# Always source from the installed .maxxy-agent/ location
-AGENT_DIR="$TARGET/.maxxy-agent"
+# ─── IDE Activation (only the detected/specified IDE) ─────────────────────
+AGENT_DIR="$TARGET/.maxxy-me"
+CFG_DIR="$AGENT_DIR/ide-configs"
 
 activate_windsurf() {
-  copy_if_missing "$AGENT_DIR/.windsurfrules" "$TARGET/.windsurfrules"
-  copy_if_missing "$AGENT_DIR/.windsurf/rules" "$TARGET/.windsurf/rules"
-  copy_if_missing "$AGENT_DIR/.windsurf/workflows" "$TARGET/.windsurf/workflows"
+  copy_if_missing "$CFG_DIR/.windsurfrules" "$TARGET/.windsurfrules"
+  copy_if_missing "$CFG_DIR/.windsurf/rules" "$TARGET/.windsurf/rules"
+  copy_if_missing "$CFG_DIR/.windsurf/workflows" "$TARGET/.windsurf/workflows"
 }
 
 activate_cursor() {
-  copy_if_missing "$AGENT_DIR/.cursorrules" "$TARGET/.cursorrules"
-  copy_if_missing "$AGENT_DIR/.cursor/rules" "$TARGET/.cursor/rules"
+  copy_if_missing "$CFG_DIR/.cursorrules" "$TARGET/.cursorrules"
+  copy_if_missing "$CFG_DIR/.cursor/rules" "$TARGET/.cursor/rules"
 }
 
 activate_claude() {
-  copy_if_missing "$AGENT_DIR/CLAUDE.md" "$TARGET/CLAUDE.md"
+  copy_if_missing "$CFG_DIR/CLAUDE.md" "$TARGET/CLAUDE.md"
 }
 
 activate_codex() {
-  copy_if_missing "$AGENT_DIR/AGENTS.md" "$TARGET/AGENTS.md"
-  copy_if_missing "$AGENT_DIR/.codex" "$TARGET/.codex"
+  copy_if_missing "$CFG_DIR/AGENTS.md" "$TARGET/AGENTS.md"
+  copy_if_missing "$CFG_DIR/.codex" "$TARGET/.codex"
 }
 
 activate_copilot() {
-  copy_if_missing "$AGENT_DIR/.github/copilot-instructions.md" "$TARGET/.github/copilot-instructions.md"
+  copy_if_missing "$CFG_DIR/.github/copilot-instructions.md" "$TARGET/.github/copilot-instructions.md"
 }
 
 activate_opencode() {
-  copy_if_missing "$AGENT_DIR/.opencode" "$TARGET/.opencode"
+  copy_if_missing "$CFG_DIR/.opencode" "$TARGET/.opencode"
 }
 
 if [ "$IDE" != "minimal" ]; then
   echo ""
-  echo "Activating IDE configs → project root"
+  echo "Activating IDE: $IDE"
   echo ""
 
   case "$IDE" in
@@ -282,9 +345,9 @@ echo "  IDE activated: $IDE"
 echo ""
 echo "  Quick start: /plan, /debug, /review, /security, /ship"
 echo "  All roles:   /frontend-dev, /backend-dev, /devops, /dba, etc."
-if ! $INSTALLED; then
+if [ "$IDE" = "minimal" ]; then
   echo ""
-  echo "  Re-activate an IDE later:"
-  echo "    $TARGET/.maxxy-agent/setup.sh $TARGET <ide>"
+  echo "  Activate an IDE later:"
+  echo "    .maxxy-me/setup.sh . <ide>"
 fi
 echo "═══════════════════════════════════════════"

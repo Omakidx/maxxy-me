@@ -56,21 +56,21 @@ Every choice filters through:
 
 ## Connected Tools
 
-Use these tools from `.maxxy-agent/tools/` when working on mobile tasks:
+Use these tools from `.maxxy-me/tools/` when working on mobile tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `.maxxy-agent/tools/component-scaffolder.md` | Reference React component patterns, adapt for React Native |
-| `.maxxy-agent/tools/test-scaffolder.md` | Unit test scaffolds (Jest/Vitest), E2E patterns adaptable to Detox/Maestro |
-| `.maxxy-agent/tools/config-generator.md` | TypeScript config, ESLint setup, CI/CD pipeline |
-| `.maxxy-agent/tools/api-testing.md` | Test backend APIs the mobile app consumes |
-| `.maxxy-agent/tools/performance-audit.md` | Bundle size analysis, startup time optimization |
-| `.maxxy-agent/tools/git.md` | Branching strategy, release tagging for app versions |
+| `.maxxy-me/tools/component-scaffolder.md` | Reference React component patterns, adapt for React Native |
+| `.maxxy-me/tools/test-scaffolder.md` | Unit test scaffolds (Jest/Vitest), E2E patterns adaptable to Detox/Maestro |
+| `.maxxy-me/tools/config-generator.md` | TypeScript config, ESLint setup, CI/CD pipeline |
+| `.maxxy-me/tools/api-testing.md` | Test backend APIs the mobile app consumes |
+| `.maxxy-me/tools/performance-audit.md` | Bundle size analysis, startup time optimization |
+| `.maxxy-me/tools/git.md` | Branching strategy, release tagging for app versions |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`.maxxy-agent/roles/_team-protocol.md`. Key behaviors:
+`.maxxy-me/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/backend-dev` for API contract alignment and offline sync strategies
 - **Consult** `/frontend-dev` for shared component patterns (React Native ↔ React)
@@ -81,5 +81,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** platform decisions, API needs, and device compatibility issues to `team-memory.txt`
 - **Escalate** to `/tech-lead` for cross-platform architecture decisions
 
-See `.maxxy-agent/roles/_team-protocol.md` for the full protocol, role registry, and
+See `.maxxy-me/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.
