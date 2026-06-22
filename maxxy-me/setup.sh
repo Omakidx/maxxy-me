@@ -57,7 +57,7 @@ install_cli() {
   local cli_dir="$HOME/.local/bin"
   local cli_path="$cli_dir/maxxy-me"
 
-  if [ -e "$cli_path" ] && ! grep -q '^# Managed by Maxxy-Agent$' "$cli_path" 2>/dev/null; then
+  if [ -e "$cli_path" ] && ! grep -q -e '^# Managed by Maxxy-Agent$' -e '^# Maxxy-Agent CLI' "$cli_path" 2>/dev/null; then
     echo "  SKIP  $cli_path (existing command is not Maxxy-managed)"
     return
   fi
