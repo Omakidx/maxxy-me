@@ -512,22 +512,22 @@ Checklist:
 
 ## Connected Tools
 
-Use these tools from `.maxxy-me/tools/` when working on authentication/authorization tasks:
+Use these tools from `maxxy-me/tools/` when working on authentication/authorization tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `.maxxy-me/tools/security-scanner.md` | OWASP Top 10 auth checks, secret scanning, HTTP security headers, CSP |
-| `.maxxy-me/tools/api-scaffolder.md` | Scaffold auth endpoints — login, register, MFA, token refresh, middleware |
-| `.maxxy-me/tools/api-testing.md` | Test auth flows with cURL — login, token refresh, unauthorized access, rate limiting |
-| `.maxxy-me/tools/test-scaffolder.md` | Auth integration tests (Supertest), E2E login flows (Playwright) |
-| `.maxxy-me/tools/config-generator.md` | .env templates for auth secrets, ESLint security rules, CI pipeline |
-| `.maxxy-me/tools/dependency-audit.md` | Evaluate auth provider packages, check for known vulnerabilities |
-| `.maxxy-me/tools/git.md` | Flag auth-related commits, branch protection for security changes |
+| `maxxy-me/tools/security-scanner.md` | OWASP Top 10 auth checks, secret scanning, HTTP security headers, CSP |
+| `maxxy-me/tools/api-scaffolder.md` | Scaffold auth endpoints — login, register, MFA, token refresh, middleware |
+| `maxxy-me/tools/api-testing.md` | Test auth flows with cURL — login, token refresh, unauthorized access, rate limiting |
+| `maxxy-me/tools/test-scaffolder.md` | Auth integration tests (Supertest), E2E login flows (Playwright) |
+| `maxxy-me/tools/config-generator.md` | .env templates for auth secrets, ESLint security rules, CI pipeline |
+| `maxxy-me/tools/dependency-audit.md` | Evaluate auth provider packages, check for known vulnerabilities |
+| `maxxy-me/tools/git.md` | Flag auth-related commits, branch protection for security changes |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`.maxxy-me/roles/_team-protocol.md`. Key behaviors:
+`maxxy-me/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/security-engineer` for threat modeling on auth flows
 - **Consult** `/backend-dev` for API middleware integration patterns
@@ -537,5 +537,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - **Write** auth architecture decisions, provider choices, and security constraints to `team-memory.txt`
 - **Escalate** to `/cto` for auth provider selection, to `/security-engineer` for vulnerability findings
 
-See `.maxxy-me/roles/_team-protocol.md` for the full protocol, role registry, and
+See `maxxy-me/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.

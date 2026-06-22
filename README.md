@@ -19,7 +19,7 @@ replacing that project's own instructions.
 - A shared `team-memory.txt` template for decisions and cross-role context
 
 Windsurf receives native workflow files. Other integrations receive instruction
-files that point agents to the canonical content under `.maxxy-me/`.
+files that point agents to the canonical content under `maxxy-me/`.
 
 ## Install
 
@@ -39,7 +39,7 @@ rm -rf /tmp/maxxy-me && git clone https://github.com/Omakidx/maxxy-me.git /tmp/m
 rm -rf /tmp/maxxy-me && git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-me && /tmp/maxxy-me/setup.sh . minimal --no-cli && rm -rf /tmp/maxxy-me
 ```
 
-The installer copies the package to `.maxxy-me/`, creates `team-memory.txt` when
+The installer copies the package to `maxxy-me/`, creates `team-memory.txt` when
 it is absent, and adds only the selected integration. It does not overwrite
 pre-existing or locally modified project files. By default it also installs the
 generic `maxxy-me` helper in `~/.local/bin`; pass `--no-cli` to skip that step.
@@ -64,14 +64,14 @@ managed global helper.
 Without the helper, use the installed script directly:
 
 ```bash
-.maxxy-me/setup.sh . cursor --no-cli
-.maxxy-me/setup.sh --uninstall .
+maxxy-me/setup.sh . cursor --no-cli
+maxxy-me/setup.sh --uninstall .
 ```
 
 ## Repository layout
 
 ```text
-.maxxy-me/
+maxxy-me/
 ├── ide-configs/  # Templates copied to each supported IDE
 ├── roles/        # Specialist role definitions
 ├── skills/       # Core engineering workflows
@@ -94,7 +94,7 @@ bash tests/content_test.sh
 
 When adding a role, update its canonical definition, its Windsurf workflow
 wrapper, the role registry, and the IDE index files. The detailed checklist lives
-in `.maxxy-me/templates/new-role/`.
+in `maxxy-me/templates/new-role/`.
 
 ## Security model
 
@@ -103,6 +103,6 @@ activation updates only an unmodified tracked file; uninstall removes only an
 unmodified tracked file. Package files use the same ownership model, so custom
 roles and locally edited skills survive uninstall. When upgrading a legacy
 installation without ownership metadata, differing package files are backed up
-under `.maxxy-me/.legacy-backup/` before replacement. Existing commands in
+under `maxxy-me/.legacy-backup/` before replacement. Existing commands in
 `~/.local/bin/maxxy-me` are never overwritten unless they carry the Maxxy-Agent
 management marker.

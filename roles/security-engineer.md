@@ -81,21 +81,21 @@ Recommendations:
 
 ## Connected Tools
 
-Use these tools from `.maxxy-me/tools/` when working on security tasks:
+Use these tools from `maxxy-me/tools/` when working on security tasks:
 
 | Tool | When to Use |
 |------|-------------|
-| `.maxxy-me/tools/security-scanner.md` | Full OWASP Top 10 audit, secret scanning, HTTP headers, CSP, input validation testing |
-| `.maxxy-me/tools/dependency-audit.md` | Vulnerability scanning, supply chain security, license risk, Snyk/Trivy integration |
-| `.maxxy-me/tools/api-testing.md` | Test auth endpoints, injection attempts, error response leakage, rate limiting |
-| `.maxxy-me/tools/docker.md` | Container hardening, non-root user, image scanning, network isolation |
-| `.maxxy-me/tools/config-generator.md` | Security-focused ESLint rules, CSP headers, .env templates |
-| `.maxxy-me/tools/git.md` | Pre-commit hooks for secret scanning (Gitleaks), branch protection |
+| `maxxy-me/tools/security-scanner.md` | Full OWASP Top 10 audit, secret scanning, HTTP headers, CSP, input validation testing |
+| `maxxy-me/tools/dependency-audit.md` | Vulnerability scanning, supply chain security, license risk, Snyk/Trivy integration |
+| `maxxy-me/tools/api-testing.md` | Test auth endpoints, injection attempts, error response leakage, rate limiting |
+| `maxxy-me/tools/docker.md` | Container hardening, non-root user, image scanning, network isolation |
+| `maxxy-me/tools/config-generator.md` | Security-focused ESLint rules, CSP headers, .env templates |
+| `maxxy-me/tools/git.md` | Pre-commit hooks for secret scanning (Gitleaks), branch protection |
 
 ## Team Collaboration
 
 This role follows the **Team Collaboration Protocol** defined in
-`.maxxy-me/roles/_team-protocol.md`. Key behaviors:
+`maxxy-me/roles/_team-protocol.md`. Key behaviors:
 
 - **Consult** `/auth-expert` for authentication/authorization design review
 - **Consult** `/backend-dev` for understanding API attack surfaces
@@ -110,5 +110,5 @@ This role follows the **Team Collaboration Protocol** defined in
 - Shipping code with unresolved authentication vulnerabilities
 - Deploying without proper secrets management
 
-See `.maxxy-me/roles/_team-protocol.md` for the full protocol, role registry, and
+See `maxxy-me/roles/_team-protocol.md` for the full protocol, role registry, and
 delegation format.
