@@ -23,20 +23,18 @@ files that point agents to the canonical content under `maxxy-me/`.
 
 ## Install
 
-Clone this repository, then run the root installer with the destination project
-and optional IDE name:
-
-```bash
-rm -rf /tmp/maxxy-me && git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-me && /tmp/maxxy-me/setup.sh . cursor && rm -rf /tmp/maxxy-me
-```
-
-Use `auto` (the default) to detect an existing IDE configuration, or choose one
-of `windsurf`, `cursor`, `claude`, `codex`, `copilot`, `opencode`, `all`, or
-`minimal`:
+`cd` into your project, then clone and run the installer:
 
 ```bash
 rm -rf /tmp/maxxy-me && git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-me && /tmp/maxxy-me/setup.sh . && rm -rf /tmp/maxxy-me
-rm -rf /tmp/maxxy-me && git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-me && /tmp/maxxy-me/setup.sh . minimal --no-cli && rm -rf /tmp/maxxy-me
+```
+
+The installer auto-detects your IDE from environment variables. To explicitly
+specify an IDE, pass it as the second argument:
+
+```bash
+# Replace <ide> with your IDE: windsurf, cursor, claude, codex, copilot, opencode, all, or minimal
+rm -rf /tmp/maxxy-me && git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-me && /tmp/maxxy-me/setup.sh . <ide> && rm -rf /tmp/maxxy-me
 ```
 
 The installer copies the package to `maxxy-me/`, creates `team-memory.txt` when

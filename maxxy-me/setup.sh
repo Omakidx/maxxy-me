@@ -259,33 +259,44 @@ is_valid_ide "$IDE" || die "Unknown IDE '$IDE'. Valid values: auto, windsurf, cu
 TARGET="$(resolve_directory "$TARGET_INPUT")" || die "Target directory '$TARGET_INPUT' does not exist."
 
 detect_ide() {
+  # STRICT detection: only use environment variables and running processes.
+  # We do NOT guess from existing config files in the target directory,
+  # because those may be leftover from a prior install with a different IDE.
+
+  # 1. Cursor — has its own env vars
   if [ -n "${CURSOR_TRACE_DIR:-}" ] || [ -n "${CURSOR_CHANNEL:-}" ]; then
     echo cursor
-  elif [ -n "${WINDSURF_TRACE_DIR:-}" ] || [ -n "${CODEIUM_TRACE_DIR:-}" ]; then
-    echo windsurf
-  elif [ "${TERM_PROGRAM:-}" = "vscode" ]; then
-    echo copilot
-  elif [ -e "$TARGET/.cursorrules" ] || [ -d "$TARGET/.cursor" ]; then
-    echo cursor
-  elif [ -e "$TARGET/.windsurfrules" ] || [ -d "$TARGET/.windsurf" ]; then
-    echo windsurf
-  elif [ -e "$TARGET/CLAUDE.md" ]; then
-    echo claude
-  elif [ -e "$TARGET/AGENTS.md" ] || [ -d "$TARGET/.codex" ]; then
-    echo codex
-  elif [ -e "$TARGET/.github/copilot-instructions.md" ]; then
-    echo copilot
-  elif [ -d "$TARGET/.opencode" ]; then
-    echo opencode
-  elif command -v claude >/dev/null 2>&1; then
-    echo claude
-  elif command -v codex >/dev/null 2>&1; then
-    echo codex
-  elif command -v opencode >/dev/null 2>&1; then
-    echo opencode
-  else
-    echo minimal
+    return
   fi
+
+  # 2. Windsurf — has its own env vars
+  if [ -n "${WINDSURF_TRACE_DIR:-}" ] || [ -n "${CODEIUM_TRACE_DIR:-}" ]; then
+    echo windsurf
+    return
+  fi
+
+  # 3. CLI tools — check if a specific CLI is available
+  if command -v claude >/dev/null 2>&1; then
+    echo claude
+    return
+  fi
+  if command -v codex >/dev/null 2>&1; then
+    echo codex
+    return
+  fi
+  if command -v opencode >/dev/null 2>&1; then
+    echo opencode
+    return
+  fi
+
+  # 5. No IDE detected — fall back to minimal and warn
+  echo ""
+  echo "  WARNING: Could not auto-detect your IDE." >&2
+  echo "  Falling back to 'minimal' (core package only, no IDE config at root)." >&2
+  echo "  To install with a specific IDE, re-run with:" >&2
+  echo "    setup.sh <target> <ide>" >&2
+  echo "  Valid IDEs: windsurf, cursor, claude, codex, copilot, opencode" >&2
+  echo minimal
 }
 
 if [ "$IDE" = "auto" ]; then
