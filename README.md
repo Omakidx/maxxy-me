@@ -27,7 +27,7 @@ Clone this repository, then run the root installer with the destination project
 and optional IDE name:
 
 ```bash
-git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-me && /tmp/maxxy-me/setup.sh . cursor && rm -rf /tmp/maxxy-me
+rm -rf /tmp/maxxy-me && git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-me && /tmp/maxxy-me/setup.sh . cursor && rm -rf /tmp/maxxy-me
 ```
 
 Use `auto` (the default) to detect an existing IDE configuration, or choose one
@@ -35,8 +35,8 @@ of `windsurf`, `cursor`, `claude`, `codex`, `copilot`, `opencode`, `all`, or
 `minimal`:
 
 ```bash
-git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-me && /tmp/maxxy-me/setup.sh . && rm -rf /tmp/maxxy-me
-git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-me && /tmp/maxxy-me/setup.sh . minimal --no-cli && rm -rf /tmp/maxxy-me
+rm -rf /tmp/maxxy-me && git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-me && /tmp/maxxy-me/setup.sh . && rm -rf /tmp/maxxy-me
+rm -rf /tmp/maxxy-me && git clone https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-me && /tmp/maxxy-me/setup.sh . minimal --no-cli && rm -rf /tmp/maxxy-me
 ```
 
 The installer copies the package to `.maxxy-me/`, creates `team-memory.txt` when
