@@ -1,0 +1,25 @@
+╔══════════════════════════════════════════════════════════════════╗
+║                    TEAM MEMORY — Shared Context                  ║
+║                                                                  ║
+║  This file is the team's shared brain. All roles read from and   ║
+║  write to this file to stay aligned. See roles/_team-protocol.md ║
+║  for the full collaboration protocol.                            ║
+║                                                                  ║
+║  RULES:                                                          ║
+║  • Always APPEND — never edit or delete previous entries         ║
+║  • Keep entries concise (5-10 lines max)                         ║
+║  • Tag the target role if feedback is for someone specific       ║
+║  • Use ISO dates (YYYY-MM-DD)                                    ║
+║  • Types: DECISION | FEEDBACK | BLOCKER | CONTEXT | HANDOFF |    ║
+║           CONCERN | COMPLETED | RESEARCH                         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+────────────────────────────────────────
+[ROLE: system] [DATE: init] [TYPE: CONTEXT]
+
+Team Memory initialized. All roles should:
+1. Read this file before starting work
+2. Append entries after significant decisions or completions
+3. Check for BLOCKER entries that may affect your work
+4. Respond to FEEDBACK entries tagged for your role
+────────────────────────────────────────

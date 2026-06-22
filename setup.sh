@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+<<<<<<< HEAD
 # ─────────────────────────────────────────────────────────────────────────────
 # Maxxy-Agent Setup — Install into any project
 # Usage: ./setup.sh <target-directory> [ide]
@@ -409,3 +410,9 @@ fi
 echo "  Switch IDE:          maxxy-me activate <ide>"
 echo "  Uninstall:           maxxy-me uninstall"
 echo "═══════════════════════════════════════════"
+=======
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+exec "$SCRIPT_DIR/.maxxy-me/setup.sh" "$@"
+>>>>>>> d4da344 (Fixing some bugs in the agent calls and scripts)
