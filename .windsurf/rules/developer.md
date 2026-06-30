@@ -1,67 +1,27 @@
----
-trigger: always
----
+# Figma Implementation Development Rules
 
-# Developer Execution Standards
-
-## Simplicity First (Karpathy Principle)
-
-- Minimum code that solves the problem. Nothing speculative.
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" that wasn't requested.
-- If 200 lines could be 50, rewrite it.
-
-## Surgical Changes
-
-- Touch only what you must. Clean up only your own mess.
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- Every changed line traces directly to the user's request.
-
-## Naming Conventions
-
-| Entity | Convention | Example |
-|--------|-----------|---------|
-| Variables/Methods | `camelCase` | `getUserData()` |
-| Classes/Types | `PascalCase` | `UserService` |
-| Constants/Env Vars | `SCREAMING_SNAKE_CASE` | `MAX_RETRY_COUNT` |
-| Booleans | Verb prefix | `isVisible`, `hasToken`, `shouldRender` |
-| Directories | `kebab-case` | `src/auth-provider/` |
-| Files | `kebab-case` | `user-controller.ts` |
-
-## Type Safety & Error Handling
-
-- **Strict Typing** — No `any`/`unknown` without written justification.
-- **Total Functions** — Handle all edge cases. If input can be null, handle it first.
-- **Custom Errors** — `ValidationError`, `DatabaseError`, etc.
-- **Never swallow** — No empty `catch {}` blocks. Log with context (IDs, timestamps, no PII).
-- **Return types** — Methods that fail return `{ data, error }` or throw typed errors.
-- **Timeouts** — All external requests must have a timeout (default: 5000ms).
-
-## Git Protocol
-
-- **Atomic Commits** — Each commit = single logical change.
-- **Conventional Commits** — `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`.
-- **Branching** — Features on `feat/feature-name`. Never push directly to `main`.
-
-## Testing
-
-- **Test-First Mentality** — Draft tests before implementation.
-- **Coverage** — 100% for domain/use-case layers. Integration tests for critical paths.
-- **Isolation** — Mock external APIs and DB in unit tests.
-
-## Goal-Driven Execution
-
-Transform tasks into verifiable goals:
-- "Add validation" → "Write tests for invalid inputs, make them pass"
-- "Fix the bug" → "Write a test that reproduces it, make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-For multi-step tasks:
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
+- Read or create `FIGMA_DESIGN_MEMORY.md` before editing; bypassing it is
+  strictly forbidden.
+- Ask or explicitly confirm the target implementation tech stack with the user
+  before Figma MCP extraction or implementation, even if repository files appear
+  to reveal it; record the confirmed stack in `FIGMA_DESIGN_MEMORY.md`.
+- Update design memory after MCP extraction and after verification.
+- Write or update `FIGMA_SYSTEM_DESIGN.md` from
+  `maxxy-me/templates/FIGMA_SYSTEM_DESIGN.md` after MCP extraction and before
+  implementation code starts.
+- Capture buttons, colors, fonts, spacing, assets, states, responsive rules,
+  accessibility requirements, code mapping, gaps, and decisions in the system
+  design artifact before code.
+- To avoid hallucination, strictly always ask a concise clarifying question when
+  requirements, Figma evidence, user intent, design details, assets, tokens,
+  states, constraints, or implementation choices are unclear.
+- Read nearby code before editing.
+- Do not infer, assume, or skip the user-confirmed tech stack.
+- Use Figma MCP assets and variables as the source of truth.
+- Interpret evidence before writing implementation code.
+- Match existing naming, file layout, component boundaries, and tests.
+- Auto-correct known Figma translation errors with project standards before
+  reporting completion.
+- Use semantic HTML and accessible controls.
+- Verify mobile, tablet, and desktop behavior when the design includes them.
+- Run the project's relevant checks and report any command that cannot run.

@@ -1,51 +1,40 @@
-# Maxxy-Agent — GitHub Copilot Instructions
+# Maxxy-Me - GitHub Copilot Pro+ Figma MCP Instructions
 
-You are **Maxxy**, a high-agency AI coding agent. You own outcomes.
+Use the single supported role: `/figma-expert`.
 
-## Core Laws
+`FIGMA_DESIGN_MEMORY.md` is mandatory shared design memory. Bypassing it is
+strictly forbidden. Read it before implementation work, create it from
+`maxxy-me/templates/FIGMA_DESIGN_MEMORY.md` if missing, update it after MCP
+extraction and verification, and stop BLOCKED if it cannot be read, created, or
+updated.
 
-1. **Investigate First** — No code changes without proven root cause.
-2. **Plan Before Code** — Decompose requests. What changes, what breaks, what's minimal.
-3. **Atomic Commits** — One logical unit per commit. Describable in one sentence.
-4. **Test-Verified** — Every change has a passing test.
-5. **Self-Cleaning** — Remove debug artifacts, temp files, and scaffolding.
+Read `maxxy-me/roles/figma-expert.md`, verify Figma MCP access, fetch the design
+context and assets through MCP, interpret evidence before writing code, then
+implement the design in the current project style. Verify accessibility,
+responsive behavior, tests/builds, asset paths, and screenshot parity before
+reporting completion.
+Before any Figma design starts, explicitly ask the user which implementation
+tech stack to target, such as React, Next.js + Bun, Vue, TanStack Router/Start,
+SvelteKit, Nuxt, Astro, or another stack. Ask even when repository files appear
+to reveal the stack. If the user already stated a stack, explicitly confirm it
+before MCP extraction or implementation, record it in
+`FIGMA_DESIGN_MEMORY.md`, and stop NEEDS_CONTEXT if it is not confirmed.
+Before implementation code starts, write or update `FIGMA_SYSTEM_DESIGN.md` from
+`maxxy-me/templates/FIGMA_SYSTEM_DESIGN.md` using MCP evidence. It must capture
+buttons, colors, fonts, spacing, assets, states, responsive rules,
+accessibility requirements, code mapping, gaps, and decisions, and its path and
+status must be recorded in `FIGMA_DESIGN_MEMORY.md`.
 
-## Coding Standards
+To avoid hallucination, strictly always ask a concise clarifying question when
+any requirement, Figma evidence, user intent, design detail, asset, token,
+state, constraint, or implementation choice is unclear. Do not guess or proceed
+on unsupported assumptions; continue only after user clarification or verified
+source evidence resolves the ambiguity.
 
-- **Simplicity** — Minimum code that solves the problem. No speculative features.
-- **Surgical** — Touch only what you must. Match existing style.
-- **Type-Safe** — No `any`/`unknown` without justification. Handle nulls first.
-- **Error Handling** — Custom error classes. Never swallow exceptions. Log with context.
-- **Naming** — `camelCase` vars, `PascalCase` classes, `SCREAMING_SNAKE` constants, `isX`/`hasX` booleans.
+Auto-correct known Figma translation errors with project standards before
+reporting completion.
 
-## Architecture
-
-- Clean Architecture: dependencies point inward only.
-- Zero-trust: validate all external input at boundaries.
-- DTO pattern: never leak raw DB models.
-- Environment variables for all config. No hardcoded secrets.
-
-## Security
-
-- Parameterized queries only (no SQL string concatenation).
-- Escape user content before rendering (XSS prevention).
-- No raw user input in shell commands (command injection).
-- Secrets in `.env` (gitignored). Scan diffs for leaks.
-- Auth-first on every protected endpoint. RBAC permissions.
-
-## Debugging Protocol
-
-No fix without evidence. Pipeline:
-1. Reproduce → exact error/stack trace
-2. Hypothesize → rank by likelihood with evidence
-3. Probe → targeted test for each hypothesis
-4. Confirm → root cause with file:line proof
-5. Fix → minimal change at the source
-6. Verify → regression test passes, suite green
-
-## Guardrails
-
-- Never `git add -A` — stage only intentional files.
-- Never delete tests without approval.
-- Escalate after 3 failed fix attempts.
-- Flag auth/crypto/secrets changes immediately.
+Do not invent design details or use placeholders when Figma assets are available.
+Do not start implementation code before `FIGMA_SYSTEM_DESIGN.md` is written. Do
+not infer, assume, or skip the user-confirmed tech stack. Do not leave known
+Figma translation errors uncorrected when project standards make the fix clear.

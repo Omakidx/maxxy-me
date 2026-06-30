@@ -1,43 +1,37 @@
----
-trigger: always
----
+# Figma Implementation Architecture
 
-# System Architecture Constitution
+Prefer the existing application architecture. Add only the minimum components,
+routes, token files, assets, or tests needed to match the Figma design.
 
-## Clean Architecture (The Inward Rule)
+Read `FIGMA_DESIGN_MEMORY.md` before architecture decisions. Record component
+mapping, token decisions, responsive decisions, tradeoffs, and unresolved design
+gaps there. Bypassing this memory is strictly forbidden.
 
-Dependencies must only point **inward**. An inner layer cannot know about an outer layer.
+Before any Figma design starts, ask or explicitly confirm the target
+implementation tech stack with the user, even if repository files appear to
+reveal it. Record the confirmed stack in `FIGMA_DESIGN_MEMORY.md` before MCP
+extraction or implementation, and do not infer, assume, or skip it.
 
-| Layer | Responsibility | Allowed Dependencies |
-|-------|---------------|---------------------|
-| **1. Domain/Core** | Entities, pure functions, interfaces | None (strictly isolated) |
-| **2. Application** | Use cases, orchestrators, workflows | Domain only |
-| **3. Infrastructure** | DB repos, API clients, auth providers | Application, Domain |
-| **4. Presentation** | UI components, API controllers, CLI | Infrastructure, Application |
+Write or update `FIGMA_SYSTEM_DESIGN.md` from
+`maxxy-me/templates/FIGMA_SYSTEM_DESIGN.md` after MCP extraction and before
+implementation code starts. Use it as the architecture bridge from Figma to
+code: buttons, colors, fonts, spacing, assets, states, responsive rules,
+accessibility requirements, code mapping, gaps, and decisions must be captured
+before components, tokens, or routes are changed.
 
-## Data Flow & Validation
+To avoid hallucination, strictly always ask a concise clarifying question before
+making an architecture decision when requirements, Figma evidence, user intent,
+design details, assets, tokens, states, constraints, or implementation choices
+are unclear. Do not guess or proceed on unsupported assumptions.
 
-- **Zero-Trust Input** — Every external payload validated at the boundary (Zod, Pydantic, JSON Schema).
-- **Sanitization** — All strings sanitized before reaching use cases (SQL injection, XSS).
-- **DTO Pattern** — Never leak raw DB models. External responses use Data Transfer Objects.
-- **Standardized Errors** — Global error handler. Descriptive for devs, sanitized for users.
+Known Figma translation errors must be auto-corrected with project standards
+before reporting completion. Use the existing architecture, component APIs,
+tokens, and file patterns as the correction source when they make the fix clear.
 
-## State & Communication
+Do not introduce a new design system, styling framework, state library, routing
+pattern, or build tool unless the Figma work cannot be completed safely without
+it and the user approves.
 
-- **Single Source of Truth** — Centralized state. No shadow states that drift.
-- **Atomic Operations** — All mutations are atomic. Multi-step failures rollback or compensate.
-- **Async Offloading** — Long-running tasks to queues/workers. Main thread stays responsive.
-
-## Configuration & Secrets
-
-- **Environment Variables** — All config driven by env vars. Zero hardcoded values.
-- **Secret Isolation** — `.env` in `.gitignore`. No secrets in tracked files.
-- **Least Privilege** — Code requests minimum permissions for its task.
-
-## Pre-Submit Verification
-
-1. No UI component imported into business logic.
-2. Schema validation exists for every new input.
-3. Every function has error handling.
-4. No function does more than its name implies.
-5. Logic testable without mocking entire databases.
+Keep visual tokens centralized, keep presentation separate from business logic,
+and preserve public APIs unless the requested design requires a deliberate
+contract change.

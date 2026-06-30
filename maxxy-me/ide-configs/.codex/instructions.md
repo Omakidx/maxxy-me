@@ -1,49 +1,52 @@
-# Maxxy-Agent — Codex CLI Instructions
+# Maxxy-Me - Codex Pro+ Figma MCP Instructions
 
-You are **Maxxy**, a high-agency AI coding agent. You own outcomes.
+Use one role only: `/figma-expert` from `maxxy-me/roles/figma-expert.md`.
 
-## Core Laws
+`FIGMA_DESIGN_MEMORY.md` is mandatory and cannot be bypassed. Before any Figma
+implementation task, read it from the project root. If missing, create it from
+`maxxy-me/templates/FIGMA_DESIGN_MEMORY.md`. Update it after MCP extraction and
+after verification. Stop with BLOCKED if it cannot be read, created, or updated.
 
-1. **Investigate First** — No code changes without proven root cause.
-2. **Plan Before Code** — Decompose. What changes, what breaks, what's minimal.
-3. **Atomic Commits** — One logical unit per commit.
-4. **Test-Verified** — Every change proven by test.
-5. **Self-Cleaning** — Remove debug artifacts.
+`FIGMA_SYSTEM_DESIGN.md` is mandatory after Figma MCP extraction and before
+implementation code starts. Create it from
+`maxxy-me/templates/FIGMA_SYSTEM_DESIGN.md` when missing, fill it from MCP
+evidence with buttons, colors, fonts, spacing, assets, states, responsive rules,
+accessibility requirements, code mapping, gaps, and decisions, and record its
+path and status in `FIGMA_DESIGN_MEMORY.md`.
 
-## Standards
+Mandatory clarification gate: to avoid hallucination, strictly always ask a
+concise clarifying question whenever any requirement, Figma evidence, user
+intent, design detail, asset, token, state, constraint, or implementation
+choice is unclear. Do not guess or proceed on unsupported assumptions; continue
+only after user clarification or verified source evidence resolves the
+ambiguity.
 
-- Simplicity First — minimum code. No speculative features.
-- Surgical Changes — touch only what's needed. Match existing style.
-- Type Safety — no `any`/`unknown` without justification.
-- Error Handling — custom errors. Never swallow. Log with context.
-- Clean Architecture — dependencies inward only. DTOs for external.
-- Zero-Trust — validate all input at boundaries.
-- Secrets in `.env` only.
+Mandatory tech stack confirmation: before any Figma design starts, explicitly
+ask the user which implementation tech stack to target, such as React,
+Next.js + Bun, Vue, TanStack Router/Start, SvelteKit, Nuxt, Astro, or another
+stack.
+Ask even when repository files appear to reveal the stack. If the user already
+stated a stack, explicitly confirm it before MCP extraction or implementation,
+and record it in `FIGMA_DESIGN_MEMORY.md`. Stop with NEEDS_CONTEXT if the stack
+is not confirmed.
 
-## Debugging (Iron Law)
+For every Figma implementation request:
 
-No fix without evidence:
-1. Reproduce → 2. Hypothesize → 3. Probe → 4. Confirm → 5. Fix → 6. Verify
+1. Read the role file.
+2. Read or create `FIGMA_DESIGN_MEMORY.md`.
+3. Ask or confirm the target tech stack with the user.
+4. Verify Figma MCP tools are available.
+5. Request a Figma node URL if no MCP-readable selection is provided.
+6. Fetch design context, metadata, screenshot, variables, and assets through MCP.
+7. Write or update `FIGMA_SYSTEM_DESIGN.md` before implementation code starts.
+8. Interpret the design in an evidence pass before writing code.
+9. Implement in the existing project style.
+10. Auto-correct known Figma translation errors with project standards.
+11. Verify tests/builds, accessibility, responsive behavior, and screenshot parity.
+12. Update design memory with final evidence.
 
-## Available Skills
-
-See `maxxy-me/skills/` directory for full protocols:
-- `maxxy-me/skills/planner.md` — Strategic decomposition
-- `maxxy-me/skills/debugger.md` — Root cause investigation
-- `maxxy-me/skills/reviewer.md` — Staff-level code review
-- `maxxy-me/skills/security-auditor.md` — OWASP + STRIDE audit
-- `maxxy-me/skills/shipper.md` — Release pipeline
-- `maxxy-me/skills/prd.md` — Product requirements
-- `maxxy-me/skills/design.md` — Technical design
-- `maxxy-me/skills/ticket.md` — Work decomposition
-- `maxxy-me/skills/autoplan.md` — Deep autonomous planning
-- `maxxy-me/skills/research.md` — Source-backed research
-- `maxxy-me/skills/team.md` — Multi-role delivery pipeline
-- `maxxy-me/skills/create-role.md` — Specialist-role creation
-
-## Guardrails
-
-- Stage only intentional files.
-- Never delete tests.
-- Escalate after 3 attempts.
-- Flag security-sensitive changes.
+Never invent missing Figma details or use placeholders when real assets are
+available. Do not start implementation code before `FIGMA_SYSTEM_DESIGN.md` is
+written. Do not infer, assume, or skip the user-confirmed tech stack. Do not
+leave known Figma translation errors uncorrected when project standards make the
+fix clear. Preserve unrelated user changes.

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Maxxy-Agent installer and project-local integration manager.
+# Maxxy-Me installer and project-local integration manager.
 set -euo pipefail
 
-VERSION="3.1.0"
+VERSION="4.1.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SOURCE_MARKER="$SCRIPT_DIR/.source-package"
 
 usage() {
   cat <<'EOF'
-Maxxy-Agent Setup — install into any project
+Maxxy-Me Setup — install the Figma MCP implementation agent
 
 USAGE:
   setup.sh <target-directory> [ide] [--no-cli]
@@ -28,7 +28,7 @@ EXAMPLES:
 
 CLI COMMANDS:
   maxxy-me activate <ide>     Add or refresh an IDE integration
-  maxxy-me uninstall          Remove unmodified Maxxy-owned files
+  maxxy-me uninstall          Remove unmodified Maxxy-Me-owned files
   maxxy-me --help             Show this help
   maxxy-me --version          Show the installed version
 
@@ -57,8 +57,8 @@ install_cli() {
   local cli_dir="$HOME/.local/bin"
   local cli_path="$cli_dir/maxxy-me"
 
-  if [ -e "$cli_path" ] && ! grep -q -e '^# Managed by Maxxy-Agent$' -e '^# Maxxy-Agent CLI' "$cli_path" 2>/dev/null; then
-    echo "  SKIP  $cli_path (existing command is not Maxxy-managed)"
+  if [ -e "$cli_path" ] && ! grep -q -e '^# Managed by Maxxy-Me$' -e '^# Managed by Maxxy-Agent$' -e '^# Maxxy-Agent CLI' "$cli_path" 2>/dev/null; then
+    echo "  SKIP  $cli_path (existing command is not Maxxy-Me-managed)"
     return
   fi
 
@@ -67,7 +67,7 @@ install_cli() {
   cli_tmp="$(mktemp "$cli_dir/maxxy-me.XXXXXX")"
   cat >"$cli_tmp" <<'CLIMEOF'
 #!/usr/bin/env bash
-# Managed by Maxxy-Agent
+# Managed by Maxxy-Me
 set -euo pipefail
 
 find_project_root() {
@@ -146,10 +146,10 @@ uninstall_project() {
   local manifest="$agent_dir/.install-manifest"
   local directory_manifest="$agent_dir/.install-directories"
   local package_manifest="$agent_dir/.package-manifest"
-  [ -d "$agent_dir" ] || die "No Maxxy-Agent installation found in '$project_root'."
-  [ ! -e "$agent_dir/.source-package" ] || die "Refusing to uninstall a Maxxy-Agent source checkout."
+  [ -d "$agent_dir" ] || die "No Maxxy-Me installation found in '$project_root'."
+  [ ! -e "$agent_dir/.source-package" ] || die "Refusing to uninstall a Maxxy-Me source checkout."
 
-  echo "Uninstalling Maxxy-Agent from: $project_root"
+  echo "Uninstalling Maxxy-Me from: $project_root"
 
   if [ -f "$manifest" ] && [ ! -L "$manifest" ]; then
     local expected relative destination actual
@@ -223,15 +223,15 @@ uninstall_project() {
 
   if [ "$remove_cli" = "true" ]; then
     local cli_path="$HOME/.local/bin/maxxy-me"
-    if [ -f "$cli_path" ] && grep -q '^# Managed by Maxxy-Agent$' "$cli_path"; then
+    if [ -f "$cli_path" ] && grep -q -e '^# Managed by Maxxy-Me$' -e '^# Managed by Maxxy-Agent$' "$cli_path"; then
       rm -f "$cli_path"
       echo "  REMOVE  $cli_path"
     else
-      echo "  KEEP    $cli_path (not Maxxy-managed or not present)"
+      echo "  KEEP    $cli_path (not Maxxy-Me-managed or not present)"
     fi
   fi
 
-  echo "DONE. Unmodified Maxxy-Agent files were removed; custom and modified files were preserved."
+  echo "DONE. Unmodified Maxxy-Me files were removed; custom and modified files were preserved."
 }
 
 case "${1:-}" in
@@ -240,7 +240,7 @@ case "${1:-}" in
     exit 0
     ;;
   --version|-v)
-    echo "maxxy-agent v$VERSION"
+    echo "maxxy-me v$VERSION"
     exit 0
     ;;
   --uninstall)
@@ -303,7 +303,7 @@ if [ "$IDE" = "auto" ]; then
   IDE="$(detect_ide)"
 fi
 
-for required in skills roles tools templates ide-configs; do
+for required in roles templates ide-configs; do
   [ -d "$SCRIPT_DIR/$required" ] || die "Source package is incomplete: missing '$required'."
 done
 
@@ -311,12 +311,12 @@ AGENT_DIR="$TARGET/maxxy-me"
 CFG_DIR="$AGENT_DIR/ide-configs"
 [ ! -L "$AGENT_DIR" ] || die "Refusing to install through symlink '$AGENT_DIR'."
 if [ -e "$AGENT_DIR/.source-package" ] && [ "$SCRIPT_DIR" != "$AGENT_DIR" ]; then
-  die "Refusing to overwrite the Maxxy-Agent source checkout at '$AGENT_DIR'."
+  die "Refusing to overwrite the Maxxy-Me source checkout at '$AGENT_DIR'."
 fi
 if [ -e "$AGENT_DIR" ] && [ "$SCRIPT_DIR" != "$AGENT_DIR" ] \
   && [ ! -f "$AGENT_DIR/.version" ] \
-  && { [ ! -f "$AGENT_DIR/setup.sh" ] || [ ! -d "$AGENT_DIR/roles" ] || [ ! -d "$AGENT_DIR/skills" ]; }; then
-  die "'$AGENT_DIR' exists but is not a recognizable Maxxy-Agent installation."
+  && { [ ! -f "$AGENT_DIR/setup.sh" ] || [ ! -d "$AGENT_DIR/roles" ] || [ ! -d "$AGENT_DIR/ide-configs" ]; }; then
+  die "'$AGENT_DIR' exists but is not a recognizable Maxxy-Me installation."
 fi
 command -v sha256sum >/dev/null 2>&1 || die "Required command 'sha256sum' is not available."
 IN_PLACE=false
@@ -324,7 +324,7 @@ if [ "$SCRIPT_DIR" = "$AGENT_DIR" ]; then
   IN_PLACE=true
 fi
 
-echo "Installing Maxxy-Agent v$VERSION"
+echo "Installing Maxxy-Me v$VERSION"
 echo "  Target: $TARGET"
 echo "  IDE:    $IDE"
 
@@ -342,6 +342,7 @@ else
   [ ! -L "$PACKAGE_MANIFEST" ] || die "Refusing symbolic-link package manifest '$PACKAGE_MANIFEST'."
   mkdir -p "$AGENT_DIR"
   touch "$PACKAGE_MANIFEST"
+  CURRENT_PACKAGE_FILES="$(mktemp "$AGENT_DIR/.package-current.XXXXXX")"
 
   package_checksum() {
     local wanted="$1"
@@ -365,6 +366,7 @@ else
     local source="$1" destination="$2"
     local relative source_checksum old_checksum current_checksum path_component
     relative="${destination#"$AGENT_DIR/"}"
+    printf '%s\n' "$relative" >>"$CURRENT_PACKAGE_FILES"
     source_checksum="$(sha256sum "$source" | awk '{print $1}')"
     old_checksum="$(package_checksum "$relative")"
 
@@ -421,7 +423,41 @@ else
     done < <(find "$source_root" -type f -print0 | sort -z)
   }
 
-  for directory in skills roles tools templates ide-configs; do
+  prune_obsolete_package_files() {
+    if ! $PACKAGE_TRACKING; then
+      return 0
+    fi
+    local manifest_tmp expected relative destination actual
+    manifest_tmp="$(mktemp "$AGENT_DIR/.package-pruned.XXXXXX")"
+    while IFS=$'\t' read -r expected relative; do
+      [ -n "$expected" ] && [ -n "$relative" ] || continue
+      case "/$relative/" in
+        *'/../'*|*'/./'*|'//'*)
+          printf '%s\t%s\n' "$expected" "$relative" >>"$manifest_tmp"
+          continue
+          ;;
+      esac
+      if grep -Fqx "$relative" "$CURRENT_PACKAGE_FILES"; then
+        printf '%s\t%s\n' "$expected" "$relative" >>"$manifest_tmp"
+        continue
+      fi
+      destination="$AGENT_DIR/$relative"
+      if [ -f "$destination" ] && [ ! -L "$destination" ]; then
+        actual="$(sha256sum "$destination" | awk '{print $1}')"
+        if [ "$actual" = "$expected" ]; then
+          rm -f "$destination"
+          echo "  PRUNE   $destination"
+          continue
+        fi
+        echo "  KEEP    $destination (obsolete package file locally modified)"
+      fi
+      printf '%s\t%s\n' "$expected" "$relative" >>"$manifest_tmp"
+    done <"$PACKAGE_MANIFEST"
+    mv -f "$manifest_tmp" "$PACKAGE_MANIFEST"
+    find "$AGENT_DIR" -depth -type d -empty -delete
+  }
+
+  for directory in roles templates ide-configs; do
     copy_core_tree "$SCRIPT_DIR/$directory" "$AGENT_DIR/$directory"
   done
   copy_core_file "$SCRIPT_DIR/setup.sh" "$AGENT_DIR/setup.sh"
@@ -430,6 +466,8 @@ else
   printf '%s\n' "$VERSION" >"$version_file"
   copy_core_file "$version_file" "$AGENT_DIR/.version"
   rm -f "$version_file"
+  prune_obsolete_package_files
+  rm -f "$CURRENT_PACKAGE_FILES"
   if $PACKAGE_DIRECTORY_EXISTED && ! $PACKAGE_TRACKING; then
     echo "  NOTE:   Legacy package differences were backed up under maxxy-me/.legacy-backup/."
   fi
@@ -446,6 +484,14 @@ touch "$DIRECTORY_MANIFEST"
 tracked_checksum() {
   local wanted="$1"
   awk -F '\t' -v path="$wanted" '$2 == path { value=$1 } END { print value }' "$MANIFEST"
+}
+
+remove_owned_record() {
+  local relative="$1"
+  local manifest_tmp
+  manifest_tmp="$(mktemp "$AGENT_DIR/.manifest.XXXXXX")"
+  awk -F '\t' -v path="$relative" '$2 != path' "$MANIFEST" >"$manifest_tmp"
+  mv -f "$manifest_tmp" "$MANIFEST"
 }
 
 record_owned() {
@@ -527,6 +573,26 @@ copy_owned() {
   echo "  COPY    $destination"
 }
 
+prune_obsolete_owned() {
+  local relative="$1"
+  local expected destination actual
+  expected="$(tracked_checksum "$relative")"
+  [ -n "$expected" ] || return 0
+  destination="$TARGET/$relative"
+  if [ -f "$destination" ] && [ ! -L "$destination" ]; then
+    actual="$(sha256sum "$destination" | awk '{print $1}')"
+    if [ "$actual" = "$expected" ]; then
+      rm -f "$destination"
+      remove_owned_record "$relative"
+      echo "  PRUNE   $destination"
+      return 0
+    fi
+    echo "  KEEP    $destination (obsolete managed file locally modified)"
+    return 0
+  fi
+  remove_owned_record "$relative"
+}
+
 copy_tree_owned() {
   local source_root="$1"
   local source relative
@@ -536,7 +602,7 @@ copy_tree_owned() {
   done < <(find "$source_root" -type f -print0 | sort -z)
 }
 
-copy_owned "$AGENT_DIR/templates/team-memory.txt" "team-memory.txt"
+copy_owned "$AGENT_DIR/templates/FIGMA_DESIGN_MEMORY.md" "FIGMA_DESIGN_MEMORY.md"
 
 activate_windsurf() {
   copy_owned "$CFG_DIR/.windsurfrules" ".windsurfrules"
@@ -584,8 +650,43 @@ case "$IDE" in
     ;;
 esac
 
+for obsolete_owned in \
+  "team-memory.txt" \
+  "figma-implementation-log.md" \
+  ".windsurf/workflows/accessibility-expert.md" \
+  ".windsurf/workflows/auth-expert.md" \
+  ".windsurf/workflows/autoplan.md" \
+  ".windsurf/workflows/backend-dev.md" \
+  ".windsurf/workflows/ceo.md" \
+  ".windsurf/workflows/code-rabbit-expert.md" \
+  ".windsurf/workflows/create-prd.md" \
+  ".windsurf/workflows/create-role.md" \
+  ".windsurf/workflows/cto.md" \
+  ".windsurf/workflows/dba.md" \
+  ".windsurf/workflows/debug.md" \
+  ".windsurf/workflows/design.md" \
+  ".windsurf/workflows/devops.md" \
+  ".windsurf/workflows/frontend-dev.md" \
+  ".windsurf/workflows/gsap-expert.md" \
+  ".windsurf/workflows/mobile-dev.md" \
+  ".windsurf/workflows/neondb-expert.md" \
+  ".windsurf/workflows/plan.md" \
+  ".windsurf/workflows/qa-engineer.md" \
+  ".windsurf/workflows/realtime-systems.md" \
+  ".windsurf/workflows/research.md" \
+  ".windsurf/workflows/review.md" \
+  ".windsurf/workflows/security-audit.md" \
+  ".windsurf/workflows/security-engineer.md" \
+  ".windsurf/workflows/ship.md" \
+  ".windsurf/workflows/team.md" \
+  ".windsurf/workflows/tech-lead.md" \
+  ".windsurf/workflows/ticket.md" \
+  ".windsurf/workflows/web-cloner.md"; do
+  prune_obsolete_owned "$obsolete_owned"
+done
+
 if [ "$CLI_OPTION" != "--no-cli" ]; then
   install_cli
 fi
 
-echo "DONE. Maxxy-Agent is ready in $TARGET (IDE: $IDE)."
+echo "DONE. Maxxy-Me is ready in $TARGET (IDE: $IDE)."

@@ -2,64 +2,68 @@
 alwaysApply: true
 ---
 
-# Maxxy-Agent — Cursor Rules
+# Maxxy-Me - Cursor Pro+ Figma MCP Rules
 
-You are **Maxxy**, a high-agency AI coding agent. You own outcomes.
+Use one specialist role: `/figma-expert` from
+`maxxy-me/roles/figma-expert.md`.
 
-## Core Laws
+## Mandatory Design Memory
 
-1. **Investigate First** — No code changes without proven root cause.
-2. **Plan Before Code** — Decompose. What changes, what breaks, what's minimal.
-3. **Atomic Commits** — One logical unit per commit.
-4. **Test-Verified** — Every change proven by test.
-5. **Self-Cleaning** — Remove debug artifacts.
+`FIGMA_DESIGN_MEMORY.md` is mandatory shared memory. Bypassing it is strictly
+forbidden. Read it before implementation work, create it from
+`maxxy-me/templates/FIGMA_DESIGN_MEMORY.md` if missing, update it after MCP
+extraction and verification, and stop BLOCKED if it cannot be read, created, or
+updated.
 
-## Coding Standards
+## Mandatory System Design
 
-- Simplicity First — minimum code for the problem. No speculative features.
-- Surgical Changes — touch only what you must. Match existing style.
-- Type Safety — no `any`/`unknown` without justification.
-- Error Handling — custom error classes. Never swallow exceptions.
-- Naming — `camelCase` vars, `PascalCase` classes, `SCREAMING_SNAKE` constants, `isX`/`hasX` booleans.
+`FIGMA_SYSTEM_DESIGN.md` must be written or updated after Figma MCP extraction
+and before implementation code starts. Create it from
+`maxxy-me/templates/FIGMA_SYSTEM_DESIGN.md` when missing, fill it from MCP
+evidence with buttons, colors, typography, spacing, assets, states, responsive
+rules, accessibility requirements, code mapping, gaps, and decisions, and record
+its path and status in `FIGMA_DESIGN_MEMORY.md`.
 
-## Architecture
+## Mandatory Clarification Gate
 
-- Dependencies point inward only (Clean Architecture).
-- Zero-trust: validate inputs at boundaries (Zod, Pydantic).
-- Never leak raw DB models. Use DTOs.
-- Env vars for config. No hardcoded secrets.
+To avoid hallucination, strictly always ask a concise clarifying question when
+any requirement, Figma evidence, user intent, design detail, asset, token,
+state, constraint, or implementation choice is unclear. Do not guess or proceed
+on unsupported assumptions; continue only after user clarification or verified
+source evidence resolves the ambiguity.
 
-## Security (non-negotiable)
+## Mandatory Tech Stack Confirmation
 
-- Parameterized queries only.
-- Escape user content before rendering.
-- No raw user input in shell commands.
-- Secrets in `.env` (gitignored).
-- Auth-first on protected endpoints.
+Before any Figma design starts, explicitly ask the user which implementation
+tech stack to target, such as React, Next.js + Bun, Vue, TanStack Router/Start,
+SvelteKit, Nuxt, Astro, or another stack. Ask even when repository files appear
+to reveal the stack. If the user already stated a stack, explicitly confirm it
+before MCP extraction or implementation, record it in
+`FIGMA_DESIGN_MEMORY.md`, and stop NEEDS_CONTEXT if it is not confirmed.
 
-## Debugging (Iron Law)
+## Required Flow
 
-No fix without evidence:
-1. Reproduce → exact error
-2. Hypothesize → rank by likelihood
-3. Probe → minimal test per hypothesis
-4. Confirm → root cause with file:line
-5. Fix → minimal change at source
-6. Verify → regression test passes
-
-## Review (6 Dimensions)
-
-1. Security (P0), 2. Error Handling (P1), 3. Performance (P1),
-4. Naming (P2), 5. Maintainability (P2), 6. Test Coverage (P1)
+1. Inspect design memory before editing.
+2. Ask or confirm the target tech stack with the user.
+3. Inspect the codebase.
+4. Verify Figma MCP access and request a Figma node URL when needed.
+5. Load design context, metadata, screenshot, variables, and assets through MCP.
+6. Write or update `FIGMA_SYSTEM_DESIGN.md` before implementation code starts.
+7. Interpret evidence before writing code.
+8. Implement with existing components, tokens, routing, tests, and build tools.
+9. Auto-correct known Figma translation errors with project standards.
+10. Verify accessibility, responsive behavior, asset paths, and screenshot parity.
+11. Update design memory with final evidence.
 
 ## Guardrails
 
-- Never `git add -A`. Stage only intentional files.
-- Never delete tests without approval.
-- Escalate after 3 failed attempts.
-- Flag auth/crypto/secrets changes.
-
-## Voice
-
-Direct. Concrete. Builder-to-builder. Name files, lines, functions.
-No filler. State problem, state fix, show evidence.
+- Do not guess Figma details.
+- Do not use placeholders when Figma assets are available.
+- Do not infer, assume, or skip the user-confirmed tech stack.
+- Do not start implementation code before `FIGMA_SYSTEM_DESIGN.md` is written.
+- Do not leave known Figma translation errors uncorrected when project standards
+  make the fix clear.
+- Do not bypass `FIGMA_DESIGN_MEMORY.md`.
+- Do not add unrelated abstractions or refactors.
+- Do not create project-local MCP config unless requested.
+- Preserve unrelated user changes.
