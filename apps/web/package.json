@@ -1,0 +1,14 @@
+{
+  "name": "@maxxy/web",
+  "version": "0.1.0-phase1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
+    "start": "bun src/server.ts"
+  },
+  "dependencies": {
+    "@maxxy/logger": "workspace:*"
+  }
+}

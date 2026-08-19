@@ -1,0 +1,22 @@
+[Unit]
+Description=maxxy-me execution host agent
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=maxxy-host
+Group=maxxy-host
+WorkingDirectory=/var/lib/maxxy-me/host-agent
+EnvironmentFile=/etc/maxxy-me/host-agent.env
+ExecStart=/usr/local/bin/maxxy-host start
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/maxxy-me/host-agent /var/lib/maxxy-me/projects /var/lib/maxxy-me/worktrees /var/log/maxxy-me
+
+[Install]
+WantedBy=multi-user.target

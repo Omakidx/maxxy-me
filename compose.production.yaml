@@ -1,0 +1,22 @@
+services:
+  caddy:
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      MAXXY_SITE_ADDRESS: ${MAXXY_SITE_ADDRESS:?set production hostname, for example workspace.example.com}
+
+  web:
+    environment:
+      APP_ENV: production
+      APP_URL: ${APP_URL:?set production HTTPS URL}
+      LOG_LEVEL: info
+      TRUSTED_PROXY_HOPS: 1
+
+  worker:
+    environment:
+      APP_ENV: production
+      LOG_LEVEL: info
+
+  postgres:
+    ports: []

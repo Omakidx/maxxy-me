@@ -1,0 +1,14 @@
+[Unit]
+Description=maxxy-me PostgreSQL backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/maxxy-me/backup.env
+ExecStart=/opt/maxxy-me/scripts/backup-postgres.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/maxxy-me/backup-staging /var/log/maxxy-me

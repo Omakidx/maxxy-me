@@ -1,0 +1,96 @@
+name: maxxy-me
+
+services:
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    environment:
+      MAXXY_SITE_ADDRESS: ${MAXXY_SITE_ADDRESS:-:80}
+    ports:
+      - "8080:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      APP_ENV: ${APP_ENV:-development}
+      APP_NAME: maxxy-me
+      APP_URL: ${APP_URL:-http://127.0.0.1:8080}
+      DATABASE_URL: postgres://maxxy:maxxy@postgres:5432/maxxy_me
+      PORT: 3000
+      BIND_HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: json
+      RELEASE_VERSION: ${RELEASE_VERSION:-phase0-compose}
+      PROTOCOL_VERSION: ${PROTOCOL_VERSION:-1}
+      WS_HEARTBEAT_INTERVAL_MS: ${WS_HEARTBEAT_INTERVAL_MS:-25000}
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "bun", "scripts/healthcheck.ts"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: .
+    command: ["bun", "run", "start:worker"]
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgres://maxxy:maxxy@postgres:5432/maxxy_me
+      RELEASE_VERSION: ${RELEASE_VERSION:-phase0-compose}
+      WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-5000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  migrate:
+    build:
+      context: .
+    command: ["bun", "run", "db:migrate"]
+    restart: "no"
+    environment:
+      DATABASE_URL: postgres://maxxy:maxxy@postgres:5432/maxxy_me
+      RELEASE_VERSION: ${RELEASE_VERSION:-phase0-compose}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17.5-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: maxxy_me
+      POSTGRES_USER: maxxy
+      POSTGRES_PASSWORD: maxxy
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maxxy -d maxxy_me"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  caddy-config:
+  caddy-data:
+  postgres-data:

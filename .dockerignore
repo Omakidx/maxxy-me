@@ -1,0 +1,14 @@
+.git
+**/.next
+**/node_modules
+bun.lockb
+Dockerfile
+compose*.yaml
+.env
+.env.*
+!.env.example
+!.env.host.example
+coverage
+dist
+tmp
+*.log
