@@ -1,10 +1,12 @@
 import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readdir, stat } from "node:fs/promises";
+import path from "node:path";
 import {
   type ControlApprovalDecisionMessage,
   type HostCommandEnvelope,
   hostCommandEnvelopeSchema,
 } from "@maxxy/contracts";
+import { isProtectedBranchName, normalizeGitRemoteUrl } from "@maxxy/git";
 import { z } from "zod";
 import type { HostRuntimeEventSink } from "./codex-runtime";
 import { HostCodexRuntimeManager } from "./codex-runtime";
@@ -19,6 +21,12 @@ const runCommandSchema = z.object({
   cwd: z.string().min(1).optional(),
   timeoutMs: z.number().int().positive().optional(),
   profile: z.string().min(1).default("default"),
+});
+const repositoryPrepareSchema = z.object({
+  repositoryUrl: z.string().min(1),
+  directory: z.string().min(1),
+  defaultBranch: z.string().min(1).optional(),
+  remote: z.string().min(1).default("origin"),
 });
 const repositoryCloneSchema = z.object({
   repositoryUrl: z.string().min(1),
@@ -41,6 +49,25 @@ const worktreeRemoveSchema = z.object({
   force: z.boolean().default(false),
 });
 const cwdSchema = z.object({ cwd: z.string().min(1) });
+const gitWorktreeSchema = z.object({ worktreePath: z.string().min(1) });
+const gitCommitSchema = gitWorktreeSchema.extend({
+  message: z.string().min(1),
+  allowEmpty: z.boolean().default(false),
+});
+const gitPushSchema = gitWorktreeSchema.extend({
+  remote: z.string().min(1).default("origin"),
+  branchName: z.string().min(1),
+  force: z.boolean().default(false),
+});
+const githubPullRequestCreateSchema = z.object({
+  repositoryOwner: z.string().min(1),
+  repositoryName: z.string().min(1),
+  headBranch: z.string().min(1),
+  baseBranch: z.string().min(1),
+  title: z.string().min(1),
+  body: z.string().default(""),
+  draft: z.boolean().default(true),
+});
 const connectionSchema = z.object({
   codexConnectionId: z.string().min(1),
   label: z.string().optional(),
@@ -114,6 +141,8 @@ export class HostCommandRunner {
         return this.json({
           inventory: await collectToolInventory(this.config),
         });
+      case "repository.prepare":
+        return this.repositoryPrepare(envelope.payload);
       case "repository.clone":
         return this.repositoryClone(envelope.payload);
       case "repository.fetch":
@@ -128,6 +157,20 @@ export class HostCommandRunner {
         return this.gitStatus(envelope.payload);
       case "git.diff":
         return this.gitDiff(envelope.payload);
+      case "git.validate":
+        return this.gitValidate(envelope.payload);
+      case "git.commit":
+        return this.gitCommit(envelope.payload);
+      case "git.push":
+        return this.gitPush(envelope.payload);
+      case "github.pull_request.create":
+        return this.githubPullRequestCreate(envelope.payload);
+      case "github.pull_request.update":
+        return {
+          status: "unsupported",
+          error:
+            "Pull request updates are synchronized through webhooks in Phase 7.",
+        };
       case "codex.connection.allocate":
       case "codex.connection.login":
       case "codex.connection.status":
@@ -135,15 +178,6 @@ export class HostCommandRunner {
       case "codex.connection.disable":
       case "codex.connection.remove":
         return this.codexConnectionCommand(envelope.command, envelope.payload);
-      case "git.commit":
-      case "git.push":
-      case "github.pull_request.create":
-      case "github.pull_request.update":
-        return {
-          status: "unsupported",
-          error:
-            "Git history and GitHub mutation commands require approval-aware workflow support in a later phase.",
-        };
       case "codex.runtime.start":
         return this.json(
           await this.codexRuntime.startRuntime(envelope.payload),
@@ -159,6 +193,75 @@ export class HostCommandRunner {
       default:
         return { status: "unsupported", error: "Unsupported command" };
     }
+  }
+
+  private async repositoryPrepare(payload: Record<string, unknown>) {
+    const input = repositoryPrepareSchema.parse(payload);
+    const directory = this.paths.resolveRepositoryPath(input.directory);
+    await mkdir(path.dirname(directory), { recursive: true });
+
+    if (!(await this.isGitWorkTree(directory))) {
+      if (
+        (await this.pathExists(directory)) &&
+        !(await this.isDirectoryEmpty(directory))
+      ) {
+        throw new Error(
+          "Repository directory exists but is not a Git work tree",
+        );
+      }
+      const args = ["clone"];
+      if (input.defaultBranch) {
+        args.push("--branch", input.defaultBranch);
+      }
+      args.push(input.repositoryUrl, directory);
+      await this.spawnOrThrow(
+        this.config.GIT_BINARY,
+        args,
+        this.config.projectRoot,
+      );
+    }
+
+    const remoteUrl = (
+      await this.gitOutput(directory, [
+        "config",
+        "--get",
+        `remote.${input.remote}.url`,
+      ])
+    ).trim();
+    if (
+      input.repositoryUrl &&
+      normalizeGitRemoteUrl(remoteUrl) !==
+        normalizeGitRemoteUrl(input.repositoryUrl)
+    ) {
+      throw new Error("Repository remote does not match registered remote URL");
+    }
+
+    await this.spawnOrThrow(
+      this.config.GIT_BINARY,
+      ["-C", directory, "fetch", input.remote, "--prune"],
+      directory,
+    );
+    const defaultBranch =
+      input.defaultBranch ??
+      (await this.detectDefaultBranch(directory, input.remote)) ??
+      "main";
+    const baseRef = `${input.remote}/${defaultBranch}`;
+    const baseSha = (
+      await this.gitOutput(directory, ["rev-parse", baseRef])
+    ).trim();
+    const clean =
+      (await this.gitOutput(directory, ["status", "--porcelain"])).trim() ===
+      "";
+
+    return this.json({
+      repositoryPath: directory,
+      remote: input.remote,
+      remoteUrl,
+      defaultBranch,
+      baseRef,
+      baseSha,
+      clean,
+    });
   }
 
   private async repositoryClone(payload: Record<string, unknown>) {
@@ -178,18 +281,30 @@ export class HostCommandRunner {
     );
     return this.spawn(
       this.config.GIT_BINARY,
-      ["-C", repositoryPath, "fetch", input.remote],
+      ["-C", repositoryPath, "fetch", input.remote, "--prune"],
       repositoryPath,
     );
   }
 
   private async worktreeCreate(payload: Record<string, unknown>) {
     const input = worktreeCreateSchema.parse(payload);
+    if (isProtectedBranchName(input.branchName)) {
+      throw new Error(
+        "Refusing to create a maxxy worktree for a protected branch",
+      );
+    }
     const repositoryPath = this.paths.resolveRepositoryPath(
       input.repositoryPath,
     );
     const worktreePath = this.paths.resolveWorktreePath(input.worktreePath);
-    const result = await this.spawn(
+    if (await this.pathExists(worktreePath)) {
+      throw new Error("Worktree path already exists");
+    }
+    await mkdir(path.dirname(worktreePath), { recursive: true });
+    const baseSha = (
+      await this.gitOutput(repositoryPath, ["rev-parse", input.baseRef])
+    ).trim();
+    await this.spawnOrThrow(
       this.config.GIT_BINARY,
       [
         "-C",
@@ -203,15 +318,14 @@ export class HostCommandRunner {
       ],
       repositoryPath,
     );
-    if (result.status === "completed") {
-      await this.paths.markWorktree(worktreePath, {
-        branchName: input.branchName,
-        repositoryPath,
-        ...(input.taskId ? { taskId: input.taskId } : {}),
-        createdAt: new Date().toISOString(),
-      });
-    }
-    return result;
+    await this.paths.markWorktree(worktreePath, {
+      branchName: input.branchName,
+      repositoryPath,
+      baseSha,
+      ...(input.taskId ? { taskId: input.taskId } : {}),
+      createdAt: new Date().toISOString(),
+    });
+    return this.json({ worktreePath, branchName: input.branchName, baseSha });
   }
 
   private async worktreeRemove(payload: Record<string, unknown>) {
@@ -279,6 +393,95 @@ export class HostCommandRunner {
     return this.spawn(this.config.GIT_BINARY, ["diff", "--stat"], cwd);
   }
 
+  private async gitValidate(payload: Record<string, unknown>) {
+    const input = gitWorktreeSchema.parse(payload);
+    const worktreePath = this.paths.resolveWorktreePath(input.worktreePath);
+    return this.spawn(
+      this.config.GIT_BINARY,
+      ["diff", "--check"],
+      worktreePath,
+    );
+  }
+
+  private async gitCommit(payload: Record<string, unknown>) {
+    const input = gitCommitSchema.parse(payload);
+    const worktreePath = this.paths.resolveWorktreePath(input.worktreePath);
+    const status = (
+      await this.gitOutput(worktreePath, ["status", "--porcelain"])
+    ).trim();
+    if (!status && !input.allowEmpty) {
+      throw new Error("No changes to commit");
+    }
+    await this.spawnOrThrow(
+      this.config.GIT_BINARY,
+      ["add", "--all"],
+      worktreePath,
+    );
+    const commitArgs = ["commit", "-m", input.message];
+    if (input.allowEmpty) {
+      commitArgs.push("--allow-empty");
+    }
+    await this.spawnOrThrow(this.config.GIT_BINARY, commitArgs, worktreePath);
+    const commitSha = (
+      await this.gitOutput(worktreePath, ["rev-parse", "HEAD"])
+    ).trim();
+    return this.json({
+      commitSha,
+      changedFiles: status.split("\n").filter(Boolean),
+    });
+  }
+
+  private async gitPush(payload: Record<string, unknown>) {
+    const input = gitPushSchema.parse(payload);
+    if (input.force) {
+      throw new Error("Force push is not allowed in Phase 7");
+    }
+    if (isProtectedBranchName(input.branchName)) {
+      throw new Error("Refusing to push protected branch");
+    }
+    const worktreePath = this.paths.resolveWorktreePath(input.worktreePath);
+    await this.spawnOrThrow(
+      this.config.GIT_BINARY,
+      ["push", input.remote, `HEAD:refs/heads/${input.branchName}`],
+      worktreePath,
+    );
+    return this.json({ remote: input.remote, branchName: input.branchName });
+  }
+
+  private async githubPullRequestCreate(payload: Record<string, unknown>) {
+    const input = githubPullRequestCreateSchema.parse(payload);
+    const result = await this.spawnOrThrow(
+      this.config.GH_BINARY,
+      [
+        "api",
+        `repos/${input.repositoryOwner}/${input.repositoryName}/pulls`,
+        "--method",
+        "POST",
+        "-f",
+        `title=${input.title}`,
+        "-f",
+        `head=${input.headBranch}`,
+        "-f",
+        `base=${input.baseBranch}`,
+        "-f",
+        `body=${input.body}`,
+        "-F",
+        `draft=${input.draft ? "true" : "false"}`,
+      ],
+      this.config.projectRoot,
+    );
+    const parsed = parseJsonObject(result.output ?? "{}");
+    return this.json({
+      number: numberValue(parsed.number) ?? 0,
+      url: stringValue(parsed.html_url) ?? stringValue(parsed.url) ?? "",
+      nodeId: stringValue(parsed.node_id),
+      title: stringValue(parsed.title) ?? input.title,
+      status: parsed.draft === true ? "draft" : "open",
+      headBranch: input.headBranch,
+      baseBranch: input.baseBranch,
+    });
+  }
+
   private async codexConnectionCommand(
     command: HostCommandEnvelope["command"],
     payload: Record<string, unknown>,
@@ -330,6 +533,67 @@ export class HostCommandRunner {
           (connection) => connection.codexConnectionId === codexConnectionId,
         ) ?? null,
     });
+  }
+
+  private async isGitWorkTree(directory: string) {
+    const result = await this.spawn(
+      this.config.GIT_BINARY,
+      ["-C", directory, "rev-parse", "--is-inside-work-tree"],
+      this.config.projectRoot,
+      5000,
+    );
+    return result.status === "completed" && result.output?.trim() === "true";
+  }
+
+  private async detectDefaultBranch(repositoryPath: string, remote: string) {
+    const symbolic = await this.spawn(
+      this.config.GIT_BINARY,
+      ["symbolic-ref", `refs/remotes/${remote}/HEAD`],
+      repositoryPath,
+      5000,
+    );
+    if (symbolic.status === "completed" && symbolic.output?.trim()) {
+      return symbolic.output.trim().split("/").at(-1);
+    }
+    const remoteShow = await this.spawn(
+      this.config.GIT_BINARY,
+      ["remote", "show", remote],
+      repositoryPath,
+      5000,
+    );
+    const match = remoteShow.output?.match(/HEAD branch:\s*(\S+)/);
+    return match?.[1];
+  }
+
+  private gitOutput(cwd: string, args: string[]) {
+    return this.spawnOrThrow(this.config.GIT_BINARY, args, cwd).then(
+      (result) => result.output ?? "",
+    );
+  }
+
+  private async spawnOrThrow(command: string, args: string[], cwd: string) {
+    const result = await this.spawn(command, args, cwd);
+    if (result.status !== "completed") {
+      throw new Error(result.error ?? result.output ?? `${command} failed`);
+    }
+    return result;
+  }
+
+  private async pathExists(candidate: string) {
+    try {
+      await stat(candidate);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async isDirectoryEmpty(candidate: string) {
+    try {
+      return (await readdir(candidate)).length === 0;
+    } catch {
+      return true;
+    }
   }
 
   private json(payload: unknown): CommandResult {
@@ -401,4 +665,23 @@ export class HostCommandRunner {
       });
     });
   }
+}
+
+function parseJsonObject(value: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+function numberValue(value: unknown) {
+  return typeof value === "number" ? value : undefined;
 }

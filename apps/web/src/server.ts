@@ -3,6 +3,8 @@ import {
   approvalRequestedPayloadSchema,
   type ControlApprovalDecisionMessage,
   type HostClientMessage,
+  type HostCommandName,
+  type HostCommandResultMessage,
   type HostConnectionReport,
 } from "@maxxy/contracts";
 import { appendWorkspaceEvent } from "@maxxy/database";
@@ -18,8 +20,114 @@ import {
   type WebSocketAuth,
 } from "./api-security";
 import { handleControlPlaneApi } from "./control-plane-api";
+import { handleGitHubWebhook } from "./github-webhooks";
 import { readHealth } from "./health";
 import { log } from "./logger";
+import { Phase7WorkflowService } from "./phase7-workflow";
+
+function isGitHubWebhookRequest(
+  request: Parameters<typeof handleGitHubWebhook>[0],
+) {
+  const url = new URL(
+    request.url ?? "/",
+    `http://${request.headers.host ?? "localhost"}`,
+  );
+  return url.pathname === "/api/github/webhooks";
+}
+
+async function handleGitHubWebhookRequest(
+  request: Parameters<typeof handleGitHubWebhook>[0],
+  response: Parameters<typeof handleGitHubWebhook>[1],
+) {
+  if (!isGitHubWebhookRequest(request)) {
+    return false;
+  }
+  return handleGitHubWebhook(request, response, requireDb());
+}
+
+function workflowService() {
+  phase7WorkflowService ??= new Phase7WorkflowService(
+    requireDb(),
+    sendHostCommand,
+  );
+  return phase7WorkflowService;
+}
+
+function dispatchAssignedTasksForHost(hostId: string) {
+  if (!openHostSocket(hostId)) {
+    return;
+  }
+  void workflowService().dispatchAssignedTasksForHost(hostId);
+}
+
+function sendHostCommand(
+  hostId: string,
+  command: HostCommandName,
+  payload: Record<string, unknown>,
+) {
+  const socket = openHostSocket(hostId);
+  if (!socket) {
+    return Promise.reject(new Error(`No active host websocket for ${hostId}`));
+  }
+  const commandId = `cmd_${crypto.randomUUID()}`;
+  const issuedAt = new Date().toISOString();
+  return new Promise<HostCommandResultMessage>((resolve, reject) => {
+    const timer = setTimeout(
+      () => {
+        pendingHostCommands.delete(commandId);
+        reject(new Error(`Timed out waiting for host command: ${command}`));
+      },
+      Number(process.env.HOST_COMMAND_RESULT_TIMEOUT_MS ?? 10 * 60 * 1000),
+    );
+    pendingHostCommands.set(commandId, { hostId, resolve, reject, timer });
+    socket.send(
+      JSON.stringify({
+        type: "control.command",
+        commandId,
+        command,
+        payload,
+        issuedAt,
+      }),
+    );
+  });
+}
+
+function resolvePendingHostCommand(
+  hostId: string,
+  message: HostCommandResultMessage,
+) {
+  const pending = pendingHostCommands.get(message.commandId);
+  if (!pending || pending.hostId !== hostId) {
+    return;
+  }
+  clearTimeout(pending.timer);
+  pendingHostCommands.delete(message.commandId);
+  pending.resolve(message);
+}
+
+function rejectPendingHostCommandsForHost(hostId: string, reason: string) {
+  for (const [commandId, pending] of pendingHostCommands.entries()) {
+    if (pending.hostId !== hostId) {
+      continue;
+    }
+    clearTimeout(pending.timer);
+    pendingHostCommands.delete(commandId);
+    pending.reject(new Error(reason));
+  }
+}
+
+function openHostSocket(hostId: string) {
+  const sockets = hostSockets.get(hostId);
+  if (!sockets) {
+    return undefined;
+  }
+  for (const socket of sockets) {
+    if (socket.readyState === socket.OPEN) {
+      return socket;
+    }
+  }
+  return undefined;
+}
 
 function rawMessageBytes(message: RawData) {
   if (Array.isArray(message)) {
@@ -44,6 +152,16 @@ const handle = app.getRequestHandler();
 const wsOptions = getWebSocketOptions();
 const authenticatedUpgrades = new WeakMap<object, WebSocketAuth>();
 const hostSockets = new Map<string, Set<WebSocket>>();
+const pendingHostCommands = new Map<
+  string,
+  {
+    hostId: string;
+    resolve: (message: HostCommandResultMessage) => void;
+    reject: (error: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }
+>();
+let phase7WorkflowService: Phase7WorkflowService | undefined;
 const sensitiveTelemetryKey =
   /(^|_)(api[-_]?key|access[-_]?token|refresh[-_]?token|authorization|password|secret|auth[-_]?json)($|_)/i;
 
@@ -72,6 +190,10 @@ const server = createServer(async (request, response) => {
       "content-type": "application/json",
     });
     response.end(JSON.stringify(health));
+    return;
+  }
+
+  if (await handleGitHubWebhookRequest(request, response)) {
     return;
   }
 
@@ -173,6 +295,7 @@ sockets.on("connection", (socket, request) => {
       if (current?.size === 0) {
         hostSockets.delete(hostId);
       }
+      rejectPendingHostCommandsForHost(hostId, "host websocket closed");
     }
     if (expiry) {
       clearTimeout(expiry);
@@ -255,6 +378,7 @@ async function handleHostProtocolMessage(
     return;
   }
   if (message.type === "host.command_result") {
+    resolvePendingHostCommand(authenticatedHostId, message);
     await appendWorkspaceEvent(requireDb(), {
       hostId: authenticatedHostId,
       type: "host.command_result_received",
@@ -525,6 +649,7 @@ async function persistHostHello(
       activeRuns: message.activeRuns,
     },
   });
+  dispatchAssignedTasksForHost(message.hostId);
 }
 
 async function persistHostHeartbeat(
@@ -552,6 +677,7 @@ async function persistHostHeartbeat(
     message.toolHealth,
   );
   await persistConnectionReports(message.hostId, message.connections);
+  dispatchAssignedTasksForHost(message.hostId);
 }
 
 async function insertHeartbeat(

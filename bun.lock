@@ -28,7 +28,12 @@
       "name": "@maxxy/host-agent",
       "version": "0.1.0-phase1",
       "dependencies": {
+        "@maxxy/codex-adapter": "workspace:*",
+        "@maxxy/contracts": "workspace:*",
+        "@maxxy/git": "workspace:*",
         "@maxxy/logger": "workspace:*",
+        "ws": "8.18.3",
+        "zod": "3.25.76",
       },
     },
     "apps/orchestrator": {
@@ -42,12 +47,21 @@
       "name": "@maxxy/web",
       "version": "0.1.0-phase1",
       "dependencies": {
+        "@maxxy/contracts": "workspace:*",
+        "@maxxy/database": "workspace:*",
+        "@maxxy/git": "workspace:*",
+        "@maxxy/github": "workspace:*",
         "@maxxy/logger": "workspace:*",
+        "@maxxy/security": "workspace:*",
       },
     },
     "packages/codex-adapter": {
       "name": "@maxxy/codex-adapter",
       "version": "0.1.0-phase1",
+      "dependencies": {
+        "@maxxy/contracts": "workspace:*",
+        "zod": "3.25.76",
+      },
     },
     "packages/config": {
       "name": "@maxxy/config",
@@ -59,7 +73,10 @@
     },
     "packages/database": {
       "name": "@maxxy/database",
-      "version": "0.1.0-phase1",
+      "version": "0.2.0-phase2",
+      "dependencies": {
+        "@maxxy/contracts": "workspace:*",
+      },
     },
     "packages/git": {
       "name": "@maxxy/git",

@@ -50,7 +50,7 @@ describe("host-agent path guard", () => {
     });
     await guard.ensureRoots();
 
-    const worktree = path.join(worktreeRoot, "task-1");
+    const worktree = path.join(worktreeRoot, "workspace-1", "task-1");
     await guard.markWorktree(worktree, { taskId: "task_1" });
     await expect(guard.assertSafeWorktreeRemoval(worktree)).resolves.toBe(
       worktree,

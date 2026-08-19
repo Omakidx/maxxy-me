@@ -12,6 +12,7 @@ export const hostProtocolVersion = 1;
 
 export const hostCommandNames = [
   "host.health_check",
+  "repository.prepare",
   "repository.clone",
   "repository.fetch",
   "worktree.create",
@@ -29,6 +30,7 @@ export const hostCommandNames = [
   "command.run",
   "git.status",
   "git.diff",
+  "git.validate",
   "git.commit",
   "git.push",
   "github.pull_request.create",

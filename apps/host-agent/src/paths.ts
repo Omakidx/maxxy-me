@@ -51,11 +51,6 @@ export class PathGuard {
     if (resolved === this.worktreeRoot) {
       throw new Error("Refusing to remove the worktree root");
     }
-    if (path.dirname(resolved) !== this.worktreeRoot) {
-      throw new Error(
-        "Worktree removals must target a direct maxxy-owned worktree",
-      );
-    }
     await readFile(path.join(resolved, markerFile), "utf8");
     return resolved;
   }
