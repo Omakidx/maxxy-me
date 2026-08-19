@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
-    "./repositories": "./src/repositories/index.ts"
+    "./repositories": "./src/repositories/index.ts",
+    "./security-repositories": "./src/security-repositories.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json"

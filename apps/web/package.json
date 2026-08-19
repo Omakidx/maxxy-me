@@ -9,6 +9,9 @@
     "start": "bun src/server.ts"
   },
   "dependencies": {
-    "@maxxy/logger": "workspace:*"
+    "@maxxy/contracts": "workspace:*",
+    "@maxxy/database": "workspace:*",
+    "@maxxy/logger": "workspace:*",
+    "@maxxy/security": "workspace:*"
   }
 }
