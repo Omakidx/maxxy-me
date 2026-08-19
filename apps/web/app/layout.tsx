@@ -2,15 +2,15 @@ import type { Metadata } from "next";
 import "./styles.css";
 
 export const metadata: Metadata = {
-  title: "maxxy-me Phase 0",
-  description: "Deployment and runtime spike for maxxy-me",
+  title: "maxxy-me",
+  description: "Personal Codex orchestration workspace",
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );
