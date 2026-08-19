@@ -2,7 +2,10 @@ console.log(
   JSON.stringify({
     level: "info",
     service: "maxxy-db-generate",
-    message: "Drizzle schema generation is not active until Phase 2",
+    message:
+      "Drizzle schema is source-controlled in packages/database/src/schema.ts; run drizzle-kit manually when intentionally authoring a generated migration.",
+    schema: "packages/database/src/schema.ts",
+    migrations: "packages/database/migrations",
     timestamp: new Date().toISOString(),
   }),
 );

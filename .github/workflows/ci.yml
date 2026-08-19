@@ -14,8 +14,24 @@ jobs:
   verify:
     name: Verify
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.5-alpine
+        env:
+          POSTGRES_DB: maxxy_me_test
+          POSTGRES_USER: maxxy
+          POSTGRES_PASSWORD: maxxy
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U maxxy -d maxxy_me_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     env:
       NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: postgres://maxxy:maxxy@127.0.0.1:5432/maxxy_me_test
+      TEST_DATABASE_URL: postgres://maxxy:maxxy@127.0.0.1:5432/maxxy_me_test
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -33,6 +49,12 @@ jobs:
 
       - name: Typecheck
         run: bun run typecheck
+
+      - name: Migrate test database
+        run: bun run db:migrate
+
+      - name: Check test database
+        run: bun run db:check
 
       - name: Test
         run: bun test

@@ -21,12 +21,18 @@ const sql = postgres(databaseUrl, {
 });
 
 try {
-  await sql`select 1`;
+  const [ping] = await sql<{ ok: number }[]>`select 1 as ok`;
+  const migrations = await sql<{ id: string; applied_at: Date }[]>`
+    select id, applied_at from schema_migrations order by id
+  `;
+
   console.log(
     JSON.stringify({
       level: "info",
       service: "maxxy-db-check",
       message: "database connection ok",
+      ok: ping?.ok === 1,
+      migrations: migrations.map((migration) => migration.id),
       timestamp: new Date().toISOString(),
     }),
   );

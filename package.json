@@ -20,6 +20,7 @@
     "start:host": "cd apps/host-agent && bun run start",
     "db:generate": "bun scripts/db-generate.ts",
     "db:migrate": "bun scripts/migrate.ts",
+    "db:seed": "bun scripts/db-seed.ts",
     "db:check": "bun scripts/db-check.ts",
     "release": "bun scripts/release.ts",
     "phase0:check": "bun scripts/phase0-check.ts",
@@ -30,6 +31,7 @@
     "test:e2e": "bun scripts/e2e-placeholder.ts"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.2",
     "next": "15.4.6",
     "postgres": "3.4.7",
     "react": "19.1.0",
@@ -44,6 +46,7 @@
     "@types/react": "19.1.9",
     "@types/react-dom": "19.1.7",
     "@types/ws": "8.18.1",
+    "drizzle-kit": "^0.31.10",
     "typescript": "5.9.2"
   }
 }
