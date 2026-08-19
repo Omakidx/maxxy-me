@@ -266,6 +266,19 @@ export const taskDependencies = pgTable(
   (table) => [primaryKey({ columns: [table.taskId, table.dependsOnTaskId] })],
 );
 
+export const taskOwnershipClaims = pgTable("task_ownership_claims", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  pattern: text("pattern").notNull(),
+  mode: text("mode").notNull().default("write"),
+  ...timestamps,
+});
+
 export const taskLeases = pgTable("task_leases", {
   id: text("id").primaryKey(),
   taskId: text("task_id")

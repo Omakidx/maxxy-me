@@ -7,6 +7,23 @@ import { Badge, Button, Card, CardLabel, Input, Textarea } from "./ui";
 type ApiState = "loading" | "ready" | "signed_out" | "bootstrap" | "error";
 type JsonRecord = Record<string, unknown>;
 
+type PlannedTask = {
+  title: string;
+  prompt: string;
+  role: string;
+  ownershipClaims: { pattern: string; mode: string }[];
+  dependsOnIndexes: number[];
+  mayRunInParallel?: boolean;
+};
+
+type ManagerPlan = {
+  workspaceId: string;
+  goal: string;
+  strategy: string;
+  parallelGroups: number[][];
+  tasks: PlannedTask[];
+};
+
 type DashboardData = {
   user?: JsonRecord;
   hosts: JsonRecord[];
@@ -68,6 +85,13 @@ export default function Page() {
     prompt: "",
     startImmediately: true,
   });
+  const [planForm, setPlanForm] = useState({
+    goal: "",
+    frontendOwnership: "apps/web/app",
+    backendOwnership: "apps/web/src",
+    startImmediately: true,
+  });
+  const [managerPlan, setManagerPlan] = useState<ManagerPlan | undefined>();
 
   const selectedWorkspaceId =
     taskForm.workspaceId || text(data.workspaces[0]?.id, "");
@@ -248,6 +272,66 @@ export default function Page() {
     }
   }
 
+  async function seedAgentProfiles() {
+    try {
+      if (!selectedWorkspaceId) {
+        throw new Error("Create a workspace before seeding profiles");
+      }
+      await api(
+        `/api/workspaces/${encodeURIComponent(selectedWorkspaceId)}/agent-profiles/seed`,
+        { method: "POST" },
+      );
+      setMessage("Default Phase 9 agent profiles seeded");
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function previewManagerPlan() {
+    try {
+      if (!selectedWorkspaceId) {
+        throw new Error("Create a workspace before planning");
+      }
+      const result = await api("/api/manager-plans/preview", {
+        method: "POST",
+        body: JSON.stringify({
+          workspaceId: selectedWorkspaceId,
+          goal: planForm.goal,
+          frontendOwnership: planForm.frontendOwnership,
+          backendOwnership: planForm.backendOwnership,
+        }),
+      });
+      setManagerPlan(result.plan as ManagerPlan);
+      setMessage("Manager plan ready for approval");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function approveManagerPlan() {
+    try {
+      if (!managerPlan) {
+        throw new Error("Preview a manager plan before approval");
+      }
+      await api("/api/manager-plans/approve", {
+        method: "POST",
+        body: JSON.stringify({
+          workspaceId: managerPlan.workspaceId,
+          goal: managerPlan.goal,
+          tasks: managerPlan.tasks,
+          startImmediately: planForm.startImmediately,
+        }),
+      });
+      setManagerPlan(undefined);
+      setPlanForm((current) => ({ ...current, goal: "" }));
+      setMessage("Manager plan approved and tasks created");
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   async function decideApproval(approvalId: unknown, decision: string) {
     try {
       await api(
@@ -287,6 +371,9 @@ export default function Page() {
         <nav className="nav-list">
           <a className="nav-link active" href="#dashboard">
             Dashboard
+          </a>
+          <a className="nav-link" href="#plans">
+            Plans
           </a>
           <a className="nav-link" href="#tasks">
             Tasks
@@ -452,6 +539,112 @@ export default function Page() {
                 </dl>
               </Card>
             </section>
+
+            <Card className="plan-panel" id="plans">
+              <div className="section-heading">
+                <div>
+                  <CardLabel>Manager</CardLabel>
+                  <h2>Plan parallel agent work</h2>
+                </div>
+                <Button onClick={() => void seedAgentProfiles()}>
+                  Seed profiles
+                </Button>
+              </div>
+              <div className="plan-grid">
+                <div className="plan-form">
+                  <Textarea
+                    label="Goal"
+                    value={planForm.goal}
+                    onChange={(event) =>
+                      setPlanForm({ ...planForm, goal: event.target.value })
+                    }
+                  />
+                  <div className="two-col">
+                    <Input
+                      label="Frontend ownership"
+                      value={planForm.frontendOwnership}
+                      onChange={(event) =>
+                        setPlanForm({
+                          ...planForm,
+                          frontendOwnership: event.target.value,
+                        })
+                      }
+                    />
+                    <Input
+                      label="Backend ownership"
+                      value={planForm.backendOwnership}
+                      onChange={(event) =>
+                        setPlanForm({
+                          ...planForm,
+                          backendOwnership: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <label className="check-field">
+                    <input
+                      checked={planForm.startImmediately}
+                      type="checkbox"
+                      onChange={(event) =>
+                        setPlanForm({
+                          ...planForm,
+                          startImmediately: event.target.checked,
+                        })
+                      }
+                    />
+                    Queue approved plan immediately
+                  </label>
+                  <div className="row-actions">
+                    <Button
+                      disabled={!selectedWorkspaceId || !planForm.goal}
+                      onClick={() => void previewManagerPlan()}
+                    >
+                      Preview plan
+                    </Button>
+                    <Button
+                      disabled={!managerPlan}
+                      onClick={() => void approveManagerPlan()}
+                      variant="primary"
+                    >
+                      Approve plan
+                    </Button>
+                  </div>
+                </div>
+                <div className="stack-list">
+                  {managerPlan?.tasks.map((task, index) => (
+                    <div
+                      className="list-item"
+                      key={`${task.role}-${task.title}`}
+                    >
+                      <div>
+                        <strong>{task.title}</strong>
+                        <span>
+                          {task.role} · owns{" "}
+                          {task.ownershipClaims
+                            .map((claim) => claim.pattern)
+                            .join(", ") || "read-only review"}
+                        </span>
+                        <span>
+                          Depends on{" "}
+                          {task.dependsOnIndexes.length > 0
+                            ? task.dependsOnIndexes
+                                .map((dependency) => `#${dependency + 1}`)
+                                .join(", ")
+                            : "no tasks"}
+                        </span>
+                      </div>
+                      <Badge
+                        variant={task.mayRunInParallel ? "success" : "muted"}
+                      >
+                        #{index + 1}
+                      </Badge>
+                    </div>
+                  )) ?? (
+                    <p className="empty">Preview a plan to inspect tasks.</p>
+                  )}
+                </div>
+              </div>
+            </Card>
 
             <section className="form-grid">
               <Card className="form-card">

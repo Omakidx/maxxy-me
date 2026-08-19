@@ -411,6 +411,22 @@ h2 {
   accent-color: var(--foreground);
 }
 
+.plan-panel {
+  margin-top: 12px;
+  padding: 18px;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 12px;
+}
+
+.plan-form {
+  display: grid;
+  gap: 14px;
+}
+
 .lower-grid {
   margin-top: 12px;
 }
@@ -479,7 +495,8 @@ h2 {
 
   .metric-grid,
   .content-grid,
-  .form-grid {
+  .form-grid,
+  .plan-grid {
     grid-template-columns: 1fr;
   }
 }

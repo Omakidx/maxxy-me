@@ -227,6 +227,106 @@ describe("task state machine and scheduler", () => {
     },
   );
 
+  integrationTest(
+    "assigns independent frontend and backend ownership claims in parallel",
+    async () => {
+      if (!database) {
+        throw new Error("Database fixture is not initialized");
+      }
+
+      const { control, host, pool, workspace } =
+        await createSchedulerFixture("phase9_parallel");
+      const suffix = crypto.randomUUID();
+      const secondConnection = await control.setupCodexConnection({
+        hostId: host.id,
+        label: "connection phase9 second",
+        authMode: "chatgpt",
+        credentialSlotId: `slot_phase9_second_${suffix}`,
+        capacitySourceLabel: "source phase9 second",
+        capacitySourceKind: "chatgpt_account",
+        maxConcurrentRuns: 1,
+      });
+      await control.updateCodexConnectionStatus({
+        connectionId: secondConnection.id,
+        status: "ready_chatgpt",
+        action: "codex.connection_ready",
+      });
+      await control.patchCapacityPool({
+        poolId: pool.id,
+        members: [
+          { connectionId: secondConnection.id, priority: 20, maxActiveRuns: 1 },
+        ],
+      });
+
+      const frontend = await control.createTask({
+        workspaceId: workspace.id,
+        title: "Frontend parallel",
+        prompt: "Frontend",
+        ownershipClaims: [{ pattern: "apps/web/app" }],
+      });
+      const backend = await control.createTask({
+        workspaceId: workspace.id,
+        title: "Backend parallel",
+        prompt: "Backend",
+        ownershipClaims: [{ pattern: "apps/web/src" }],
+      });
+      const state = new TaskStateMachine(database);
+      await state.start(frontend.id, "usr_test");
+      await state.start(backend.id, "usr_test");
+
+      const result = await new SchedulerService(database, {
+        maxAssignmentsPerTick: 2,
+      }).tick();
+      const assigned = await database.sql<{ count: number }[]>`
+        select count(*)::int as count
+        from tasks
+        where id in (${frontend.id}, ${backend.id}) and status = 'assigned'
+      `;
+
+      expect(result.assignedTasks).toBe(2);
+      expect(assigned[0]?.count).toBe(2);
+    },
+  );
+
+  integrationTest(
+    "blocks concurrent assignment for overlapping ownership claims",
+    async () => {
+      if (!database) {
+        throw new Error("Database fixture is not initialized");
+      }
+
+      const { control, workspace } =
+        await createSchedulerFixture("phase9_overlap");
+      const parent = await control.createTask({
+        workspaceId: workspace.id,
+        title: "Own app root",
+        prompt: "Parent",
+        ownershipClaims: [{ pattern: "apps/web" }],
+      });
+      const overlapping = await control.createTask({
+        workspaceId: workspace.id,
+        title: "Own app child",
+        prompt: "Child",
+        ownershipClaims: [{ pattern: "apps/web/app" }],
+      });
+      const state = new TaskStateMachine(database);
+      await state.start(parent.id, "usr_test");
+      await state.start(overlapping.id, "usr_test");
+
+      const scheduler = new SchedulerService(database, {
+        maxAssignmentsPerTick: 2,
+      });
+      await scheduler.tick();
+      const rows = await database.sql<{ id: string; status: string }[]>`
+        select id, status from tasks where id in (${parent.id}, ${overlapping.id})
+      `;
+      const statuses = new Map(rows.map((row) => [row.id, row.status]));
+
+      expect(statuses.get(parent.id)).toBe("assigned");
+      expect(statuses.get(overlapping.id)).toBe("ready");
+    },
+  );
+
   integrationTest("stops tasks assigned to revoked hosts", async () => {
     if (!database) {
       throw new Error("Database fixture is not initialized");

@@ -29,6 +29,36 @@ type SchedulerConnection = {
 const eligibleCapacitySql =
   "(latest.availability is null or latest.availability not in ('cooldown','limited') or latest.reset_at <= now())";
 
+const activeOwnershipSql = `
+  not exists (
+    select 1
+    from task_ownership_claims candidate
+    join task_ownership_claims active_claim
+      on active_claim.workspace_id = candidate.workspace_id
+     and active_claim.mode = 'write'
+     and candidate.mode = 'write'
+     and active_claim.task_id <> candidate.task_id
+     and (
+       active_claim.pattern = candidate.pattern
+       or active_claim.pattern like (candidate.pattern || '/%')
+       or candidate.pattern like (active_claim.pattern || '/%')
+     )
+    join task_leases active_lease
+      on active_lease.task_id = active_claim.task_id
+     and active_lease.status = 'active'
+     and active_lease.expires_at > now()
+    join tasks active_task on active_task.id = active_claim.task_id
+    where candidate.task_id = t.id
+      and active_task.status not in ('merged','failed','cancelled')
+      and not exists (
+        select 1
+        from task_dependencies dependency
+        where dependency.task_id = t.id
+          and dependency.depends_on_task_id = active_claim.task_id
+      )
+  )
+`;
+
 export type SchedulerTickResult = {
   expiredTaskLeases: number;
   expiredCodexConnectionLeases: number;
@@ -227,6 +257,32 @@ export class SchedulerService {
           and not exists (
             select 1 from task_leases tl
             where tl.task_id = t.id and tl.status = 'active' and tl.expires_at > now()
+          )
+          and ${this.database.sql.unsafe(activeOwnershipSql)}
+          and (
+            select count(*)::int
+            from task_leases workspace_leases
+            join tasks workspace_tasks on workspace_tasks.id = workspace_leases.task_id
+            where workspace_tasks.workspace_id = t.workspace_id
+              and workspace_leases.status = 'active'
+              and workspace_leases.expires_at > now()
+          ) < (
+            select maximum_concurrent_agents
+            from workspaces workspace_capacity
+            where workspace_capacity.id = t.workspace_id
+          )
+          and ${this.database.sql.unsafe(activeOwnershipSql)}
+          and (
+            select count(*)::int
+            from task_leases workspace_leases
+            join tasks workspace_tasks on workspace_tasks.id = workspace_leases.task_id
+            where workspace_tasks.workspace_id = t.workspace_id
+              and workspace_leases.status = 'active'
+              and workspace_leases.expires_at > now()
+          ) < (
+            select maximum_concurrent_agents
+            from workspaces workspace_capacity
+            where workspace_capacity.id = t.workspace_id
           )
           and exists (
             select 1

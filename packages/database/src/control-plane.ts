@@ -5,6 +5,86 @@ function id(prefix: string) {
   return `${prefix}_${crypto.randomUUID()}`;
 }
 
+const defaultAgentProfiles = [
+  {
+    role: "manager",
+    name: "Manager",
+    sandboxMode: "read-only",
+    canCreateSubagents: true,
+    instructions:
+      "Break owner goals into safe, dependency-aware tasks and identify ownership boundaries before execution.",
+  },
+  {
+    role: "architect",
+    name: "Architect",
+    sandboxMode: "read-only",
+    canCreateSubagents: false,
+    instructions:
+      "Design implementation approaches, review architecture constraints, and keep task boundaries small.",
+  },
+  {
+    role: "frontend",
+    name: "Frontend",
+    sandboxMode: "workspace-write",
+    canCreateSubagents: false,
+    instructions:
+      "Implement user-facing UI changes within declared frontend ownership paths.",
+  },
+  {
+    role: "backend",
+    name: "Backend",
+    sandboxMode: "workspace-write",
+    canCreateSubagents: false,
+    instructions:
+      "Implement server, database, API, and orchestration changes within declared backend ownership paths.",
+  },
+  {
+    role: "testing",
+    name: "Testing",
+    sandboxMode: "workspace-write",
+    canCreateSubagents: false,
+    instructions:
+      "Add and run focused validation for completed implementation tasks.",
+  },
+  {
+    role: "reviewer",
+    name: "Reviewer",
+    sandboxMode: "read-only",
+    canCreateSubagents: false,
+    instructions:
+      "Review combined changes, report findings, and never merge pull requests.",
+  },
+  {
+    role: "integrator",
+    name: "Integrator",
+    sandboxMode: "workspace-write",
+    canCreateSubagents: false,
+    instructions:
+      "Resolve approved integration work without bypassing owner-controlled pull-request review.",
+  },
+] as const;
+
+const activeOwnershipStatuses = [
+  "queued",
+  "ready",
+  "assigned",
+  "claimed",
+  "starting",
+  "running",
+  "awaiting_approval",
+  "blocked",
+  "validating",
+  "integrating",
+  "finalizing",
+  "pushing",
+  "opening_pull_request",
+  "changes_requested",
+] as const;
+
+function normalizeOwnershipPattern(pattern: string) {
+  return pattern.trim().replace(/^\.\//, "").replace(/\/+$/g, "");
+}
+
 export class ControlPlaneRepository {
   constructor(private readonly database: DatabaseHandle) {}
 
@@ -371,6 +451,9 @@ export class ControlPlaneRepository {
     idempotencyKey?: string | undefined;
     preferredCodexPoolId?: string | undefined;
     assignedProfileId?: string | undefined;
+    ownershipClaims?:
+      | { pattern: string; mode?: string | undefined }[]
+      | undefined;
     dependencies?:
       | { dependsOnTaskId: string; condition?: string | undefined }[]
       | undefined;
@@ -396,6 +479,27 @@ export class ControlPlaneRepository {
           set condition = excluded.condition, updated_at = now()
         `;
         }
+        for (const claim of input.ownershipClaims ?? []) {
+          const pattern = normalizeOwnershipPattern(claim.pattern);
+          if (!pattern) {
+            continue;
+          }
+          await this.assertNoOwnershipOverlap(tx, {
+            workspaceId: input.workspaceId,
+            pattern,
+            exceptTaskIds: [
+              task.id,
+              ...(input.dependencies ?? []).map(
+                (dependency) => dependency.dependsOnTaskId,
+              ),
+            ],
+          });
+          await tx`
+          insert into task_ownership_claims (id, task_id, workspace_id, pattern, mode)
+          values (${id("own")}, ${task.id}, ${input.workspaceId}, ${pattern}, ${claim.mode ?? "write"})
+          on conflict (task_id, pattern, mode) do nothing
+        `;
+        }
         return task;
       })
       .then(async (task) => {
@@ -412,6 +516,138 @@ export class ControlPlaneRepository {
         });
         return task;
       });
+  }
+
+  listAgentProfiles(workspaceId?: string | undefined) {
+    return this.database.sql`
+      select *
+      from agent_profiles
+      where (${workspaceId ?? null}::text is null or workspace_id = ${workspaceId ?? null})
+      order by workspace_id nulls first, role asc, name asc
+    `;
+  }
+
+  async ensureDefaultAgentProfiles(workspaceId: string) {
+    const rows = [];
+    for (const profile of defaultAgentProfiles) {
+      const profileId = `profile_${workspaceId}_${profile.role}`;
+      const [row] = await this.database.sql`
+        insert into agent_profiles (
+          id, workspace_id, name, role, instructions, sandbox_mode, can_create_subagents
+        )
+        values (
+          ${profileId}, ${workspaceId}, ${profile.name}, ${profile.role},
+          ${profile.instructions}, ${profile.sandboxMode}, ${profile.canCreateSubagents}
+        )
+        on conflict (id) do update
+        set name = excluded.name,
+            instructions = excluded.instructions,
+            sandbox_mode = excluded.sandbox_mode,
+            can_create_subagents = excluded.can_create_subagents,
+            updated_at = now()
+        returning *
+      `;
+      if (row) {
+        rows.push(row);
+      }
+    }
+    await appendWorkspaceEvent(this.database, {
+      workspaceId,
+      type: "agent_profiles.default_seeded",
+      payload: { roles: defaultAgentProfiles.map((profile) => profile.role) },
+      idempotencyKey: `agent_profiles.default_seeded:${workspaceId}`,
+    });
+    return rows;
+  }
+
+  async approveManagerPlan(input: {
+    workspaceId: string;
+    goal: string;
+    tasks: {
+      title: string;
+      prompt: string;
+      role: string;
+      ownershipClaims?: { pattern: string; mode?: string | undefined }[];
+      dependsOnIndexes?: number[] | undefined;
+    }[];
+    startImmediately?: boolean | undefined;
+    actorUserId?: string | undefined;
+  }) {
+    const profiles = await this.ensureDefaultAgentProfiles(input.workspaceId);
+    const profileByRole = new Map(
+      profiles.map((profile) => [String(profile.role), String(profile.id)]),
+    );
+    const createdTasks: unknown[] = [];
+    const createdTaskIds: string[] = [];
+
+    for (const [index, plannedTask] of input.tasks.entries()) {
+      const dependencies = (plannedTask.dependsOnIndexes ?? [])
+        .map((dependencyIndex) => createdTaskIds[dependencyIndex])
+        .filter((taskId): taskId is string => Boolean(taskId))
+        .map((dependsOnTaskId) => ({
+          dependsOnTaskId,
+          condition: "merged",
+        }));
+      const task = await this.createTask({
+        workspaceId: input.workspaceId,
+        title: plannedTask.title,
+        prompt: `${plannedTask.prompt}\n\nPhase 9 plan goal: ${input.goal}`,
+        assignedProfileId: profileByRole.get(plannedTask.role),
+        ownershipClaims: plannedTask.ownershipClaims,
+        dependencies,
+        idempotencyKey: `phase9:${input.goal}:${index}:${plannedTask.role}`,
+      });
+      createdTasks.push(task);
+      createdTaskIds.push(task.id);
+    }
+
+    if (input.startImmediately) {
+      await this.database.sql`
+        update tasks
+        set status = 'queued', updated_at = now()
+        where id in ${this.database.sql(createdTaskIds)}
+          and status = 'draft'
+      `;
+    }
+
+    await appendWorkspaceEvent(this.database, {
+      workspaceId: input.workspaceId,
+      type: "manager.plan_approved",
+      payload: {
+        actorUserId: input.actorUserId,
+        goal: input.goal,
+        taskIds: createdTaskIds,
+      },
+    });
+
+    return { tasks: createdTasks };
+  }
+
+  private async assertNoOwnershipOverlap(
+    tx: DatabaseHandle["sql"],
+    input: { workspaceId: string; pattern: string; exceptTaskIds?: string[] },
+  ) {
+    const exceptTaskIds = input.exceptTaskIds ?? [];
+    const [overlap] = await tx<{ task_id: string; pattern: string }[]>`
+      select c.task_id, c.pattern
+      from task_ownership_claims c
+      join tasks t on t.id = c.task_id
+      where c.workspace_id = ${input.workspaceId}
+        and c.mode = 'write'
+        and t.status in ${this.database.sql([...activeOwnershipStatuses])}
+        and (${exceptTaskIds.length === 0} or c.task_id not in ${this.database.sql(exceptTaskIds.length > 0 ? exceptTaskIds : ["__none__"])})
+        and (
+          c.pattern = ${input.pattern}
+          or c.pattern like (${input.pattern} || '/%')
+          or ${input.pattern} like (c.pattern || '/%')
+        )
+      limit 1
+    `;
+    if (overlap) {
+      throw new Error(
+        `Ownership overlap with active task ${overlap.task_id} on ${overlap.pattern}`,
+      );
+    }
   }
 
   listEvents(input: {

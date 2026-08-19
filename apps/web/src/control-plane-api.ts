@@ -111,6 +111,10 @@ const patchWorkspaceSchema = z.object({
   codexPoolId: z.string().min(1).nullable().optional(),
   codexRoutingPolicy: routingPolicySchema.optional(),
 });
+const ownershipClaimSchema = z.object({
+  pattern: z.string().min(1).max(500),
+  mode: z.enum(["read", "write"]).default("write"),
+});
 const createTaskSchema = z.object({
   workspaceId: z.string().min(1),
   title: z.string().min(1).max(200),
@@ -119,6 +123,7 @@ const createTaskSchema = z.object({
   idempotencyKey: z.string().min(1).max(200).optional(),
   preferredCodexPoolId: z.string().min(1).optional(),
   assignedProfileId: z.string().min(1).optional(),
+  ownershipClaims: z.array(ownershipClaimSchema).default([]),
   dependencies: z
     .array(
       z.object({
@@ -129,6 +134,35 @@ const createTaskSchema = z.object({
     .default([]),
   startImmediately: z.boolean().default(false),
 });
+
+const managerPlanTaskSchema = z.object({
+  title: z.string().min(1).max(200),
+  prompt: z.string().min(1).max(40_000),
+  role: z.enum([
+    "manager",
+    "architect",
+    "frontend",
+    "backend",
+    "testing",
+    "reviewer",
+    "integrator",
+  ]),
+  ownershipClaims: z.array(ownershipClaimSchema).default([]),
+  dependsOnIndexes: z.array(z.number().int().min(0)).default([]),
+});
+const managerPlanPreviewSchema = z.object({
+  workspaceId: z.string().min(1),
+  goal: z.string().min(1).max(40_000),
+  frontendOwnership: z.string().min(1).max(500).default("apps/web"),
+  backendOwnership: z.string().min(1).max(500).default("apps/web/src"),
+});
+const managerPlanApprovalSchema = z.object({
+  workspaceId: z.string().min(1),
+  goal: z.string().min(1).max(40_000),
+  tasks: z.array(managerPlanTaskSchema).min(1).max(20),
+  startImmediately: z.boolean().default(true),
+});
+
 const eventsQuerySchema = z.object({
   workspaceId: z.string().min(1).optional(),
   afterSequence: z.coerce.number().int().min(-1).default(-1),
@@ -428,6 +462,58 @@ export async function handleControlPlaneApi(
       return true;
     }
 
+    if (pathname === "/api/agent-profiles" && method === "GET") {
+      sendJson(response, 200, {
+        profiles: await repository.listAgentProfiles(
+          url.searchParams.get("workspaceId") ?? undefined,
+        ),
+      });
+      return true;
+    }
+
+    const seedProfilesMatch = pathname.match(
+      /^\/api\/workspaces\/([^/]+)\/agent-profiles\/seed$/,
+    );
+    if (seedProfilesMatch && method === "POST") {
+      const profiles = await repository.ensureDefaultAgentProfiles(
+        decodeURIComponent(seedProfilesMatch[1] ?? ""),
+      );
+      await recordAudit(
+        "agent_profiles.seeded",
+        auth.identity,
+        "workspace",
+        decodeURIComponent(seedProfilesMatch[1] ?? ""),
+      );
+      sendJson(response, 200, { profiles });
+      return true;
+    }
+
+    if (pathname === "/api/manager-plans/preview" && method === "POST") {
+      const body = managerPlanPreviewSchema.parse(await readJson(request));
+      sendJson(response, 200, { plan: buildManagerPlan(body) });
+      return true;
+    }
+
+    if (pathname === "/api/manager-plans/approve" && method === "POST") {
+      const body = managerPlanApprovalSchema.parse(await readJson(request));
+      const result = await repository.approveManagerPlan({
+        workspaceId: body.workspaceId,
+        goal: body.goal,
+        tasks: body.tasks,
+        startImmediately: body.startImmediately,
+        actorUserId: auth.identity.user.id,
+      });
+      await recordAudit(
+        "manager.plan_approved",
+        auth.identity,
+        "workspace",
+        body.workspaceId,
+        { taskCount: body.tasks.length },
+      );
+      sendJson(response, 201, result);
+      return true;
+    }
+
     if (pathname === "/api/tasks" && method === "GET") {
       sendJson(response, 200, { tasks: await repository.listTasks() });
       return true;
@@ -543,6 +629,60 @@ export async function handleControlPlaneApi(
   }
 }
 
+function buildManagerPlan(input: {
+  workspaceId: string;
+  goal: string;
+  frontendOwnership: string;
+  backendOwnership: string;
+}) {
+  const goal = input.goal.trim();
+  const backendPrompt = `Implement the backend/API/data-model portion of this goal with a narrow scope: ${goal}`;
+  const frontendPrompt = `Implement the owner-facing UI portion of this goal with a narrow scope: ${goal}`;
+  const testingPrompt = `Add focused validation for the backend and frontend tasks for this goal: ${goal}`;
+  const reviewerPrompt = `Review the completed task pull requests for this goal and report findings without merging: ${goal}`;
+
+  return {
+    workspaceId: input.workspaceId,
+    goal,
+    strategy: "wait_for_parent_pr_merge",
+    parallelGroups: [[0, 1], [2], [3]],
+    tasks: [
+      {
+        title: `Backend: ${goal.slice(0, 120)}`,
+        role: "backend",
+        prompt: backendPrompt,
+        ownershipClaims: [{ pattern: input.backendOwnership, mode: "write" }],
+        dependsOnIndexes: [],
+        mayRunInParallel: true,
+      },
+      {
+        title: `Frontend: ${goal.slice(0, 120)}`,
+        role: "frontend",
+        prompt: frontendPrompt,
+        ownershipClaims: [{ pattern: input.frontendOwnership, mode: "write" }],
+        dependsOnIndexes: [],
+        mayRunInParallel: true,
+      },
+      {
+        title: `Testing: ${goal.slice(0, 120)}`,
+        role: "testing",
+        prompt: testingPrompt,
+        ownershipClaims: [{ pattern: "tests", mode: "write" }],
+        dependsOnIndexes: [0, 1],
+        mayRunInParallel: false,
+      },
+      {
+        title: `Review: ${goal.slice(0, 120)}`,
+        role: "reviewer",
+        prompt: reviewerPrompt,
+        ownershipClaims: [],
+        dependsOnIndexes: [2],
+        mayRunInParallel: false,
+      },
+    ],
+  };
+}
+
 function isControlPlanePath(pathname: string) {
   if (pathname === "/api/hosts/exchange-enrollment") {
     return false;
@@ -558,6 +698,9 @@ function isControlPlanePath(pathname: string) {
     pathname.startsWith("/api/codex-connections/") ||
     pathname === "/api/workspaces" ||
     pathname.startsWith("/api/workspaces/") ||
+    pathname === "/api/agent-profiles" ||
+    pathname === "/api/manager-plans/preview" ||
+    pathname === "/api/manager-plans/approve" ||
     pathname === "/api/tasks" ||
     pathname.startsWith("/api/tasks/") ||
     pathname === "/api/events" ||
@@ -583,6 +726,12 @@ function scopeFor(method: string, pathname: string) {
   }
   if (pathname.includes("hosts")) {
     return "hosts:write";
+  }
+  if (
+    pathname.includes("manager-plans") ||
+    pathname.includes("agent-profiles")
+  ) {
+    return method === "GET" ? "tasks:read" : "tasks:write";
   }
   if (pathname.includes("tasks")) {
     return "tasks:write";
