@@ -16,6 +16,13 @@ function requireRow<T>(row: T | null | undefined, label: string): T {
   return row;
 }
 
+function capacitySourceIdFor(connection: {
+  capacitySourceId?: string;
+  capacity_source_id?: string;
+}) {
+  return connection.capacitySourceId ?? connection.capacity_source_id ?? "";
+}
+
 async function createSchedulerFixture(label: string) {
   if (!database) {
     throw new Error("Database fixture is not initialized");
@@ -249,4 +256,174 @@ describe("task state machine and scheduler", () => {
     expect(result.stoppedRevokedHostTasks).toBeGreaterThanOrEqual(1);
     expect(stored?.status).toBe("failed");
   });
+
+  integrationTest(
+    "skips limited connections while another pool member is eligible",
+    async () => {
+      if (!database) {
+        throw new Error("Database fixture is not initialized");
+      }
+
+      const { connection, control, host, pool, workspace } =
+        await createSchedulerFixture("limited");
+      const fallback = await control.setupCodexConnection({
+        hostId: host.id,
+        label: "fallback limited connection",
+        authMode: "chatgpt",
+        credentialSlotId: `fallback_slot_${crypto.randomUUID()}`,
+        capacitySourceLabel: "fallback limited source",
+        capacitySourceKind: "chatgpt_account",
+        maxConcurrentRuns: 1,
+      });
+      await control.updateCodexConnectionStatus({
+        connectionId: fallback.id,
+        status: "ready_chatgpt",
+        action: "codex.connection_ready",
+      });
+      await control.patchCapacityPool({
+        poolId: pool.id,
+        members: [
+          { connectionId: connection.id, priority: 1, maxActiveRuns: 1 },
+          { connectionId: fallback.id, priority: 2, maxActiveRuns: 1 },
+        ],
+      });
+      await database.sql`
+        insert into codex_capacity_snapshots (
+          id, capacity_source_id, reporting_connection_id, availability,
+          remaining_percent, observation_source, observed_at, payload
+        ) values (
+          ${`capsnap_${crypto.randomUUID()}`}, ${capacitySourceIdFor(connection)},
+          ${connection.id}, 'limited', 0, 'manual', now(), '{}'::jsonb
+        )
+      `;
+      await database.sql`
+        insert into codex_capacity_snapshots (
+          id, capacity_source_id, reporting_connection_id, availability,
+          remaining_percent, observation_source, observed_at, payload
+        ) values (
+          ${`capsnap_${crypto.randomUUID()}`}, ${capacitySourceIdFor(fallback)},
+          ${fallback.id}, 'available', 100, 'manual', now(), '{}'::jsonb
+        )
+      `;
+
+      const task = await control.createTask({
+        workspaceId: workspace.id,
+        title: "Limited routing",
+        prompt: "Use the eligible fallback",
+        priority: 0,
+      });
+      await new TaskStateMachine(database).start(task.id, "usr_test");
+
+      const result = await new SchedulerService(database, {
+        maxAssignmentsPerTick: 1,
+      }).tick();
+      const [stored] = await control.getTask(task.id);
+
+      expect(result.assignedTasks).toBe(1);
+      expect(stored?.assigned_codex_connection_id).toBe(fallback.id);
+    },
+  );
+
+  integrationTest(
+    "failover creates a new attempt without rewriting the original thread connection",
+    async () => {
+      if (!database) {
+        throw new Error("Database fixture is not initialized");
+      }
+
+      const { connection, control, host, pool, workspace } =
+        await createSchedulerFixture("failover");
+      const fallback = await control.setupCodexConnection({
+        hostId: host.id,
+        label: "fallback failover connection",
+        authMode: "chatgpt",
+        credentialSlotId: `failover_slot_${crypto.randomUUID()}`,
+        capacitySourceLabel: "fallback failover source",
+        capacitySourceKind: "chatgpt_account",
+        maxConcurrentRuns: 1,
+      });
+      await control.updateCodexConnectionStatus({
+        connectionId: fallback.id,
+        status: "ready_chatgpt",
+        action: "codex.connection_ready",
+      });
+      await control.patchCapacityPool({
+        poolId: pool.id,
+        members: [
+          { connectionId: connection.id, priority: 1, maxActiveRuns: 1 },
+          { connectionId: fallback.id, priority: 2, maxActiveRuns: 1 },
+        ],
+      });
+      const task = await control.createTask({
+        workspaceId: workspace.id,
+        title: "Failover routing",
+        prompt: "Create a fresh attempt",
+        priority: 0,
+      });
+      await new TaskStateMachine(database).start(task.id, "usr_test");
+      await new SchedulerService(database, { maxAssignmentsPerTick: 1 }).tick();
+
+      const [firstAttemptRow] = await database.sql<
+        { id: string; codex_connection_id: string }[]
+      >`
+        select id, codex_connection_id
+        from task_runtime_attempts
+        where task_id = ${task.id}
+        order by attempt_number asc
+        limit 1
+      `;
+      const firstAttempt = requireRow(firstAttemptRow, "first attempt");
+      expect(firstAttempt.codex_connection_id).toBe(connection.id);
+      const originalThreadId = `thread_${crypto.randomUUID()}`;
+      await database.sql`
+        insert into threads (id, task_id, attempt_id, codex_connection_id, provider_thread_id, status)
+        values (${originalThreadId}, ${task.id}, ${firstAttempt.id}, ${connection.id}, 'provider-old', 'failed')
+      `;
+      await database.sql`
+        update task_runtime_attempts
+        set thread_id = ${originalThreadId}, updated_at = now()
+        where id = ${firstAttempt.id}
+      `;
+      await database.sql`
+        update task_leases set status = 'released', released_at = now(), updated_at = now()
+        where task_id = ${task.id} and status = 'active'
+      `;
+      await database.sql`
+        update codex_connection_leases set status = 'released', released_at = now(), updated_at = now()
+        where task_id = ${task.id} and status = 'active'
+      `;
+      await database.sql`
+        insert into codex_capacity_snapshots (
+          id, capacity_source_id, reporting_connection_id, availability,
+          remaining_percent, observation_source, observed_at, payload
+        ) values (
+          ${`capsnap_${crypto.randomUUID()}`}, ${capacitySourceIdFor(connection)},
+          ${connection.id}, 'limited', 0, 'manual', now(), '{}'::jsonb
+        )
+      `;
+      await database.sql`
+        update tasks
+        set status = 'ready', assigned_host_id = null, assigned_codex_connection_id = null, updated_at = now()
+        where id = ${task.id}
+      `;
+
+      await new SchedulerService(database, { maxAssignmentsPerTick: 1 }).tick();
+      const attempts = await database.sql<
+        { id: string; attempt_number: number; codex_connection_id: string }[]
+      >`
+        select id, attempt_number, codex_connection_id
+        from task_runtime_attempts
+        where task_id = ${task.id}
+        order by attempt_number asc
+      `;
+      const [thread] = await database.sql<{ codex_connection_id: string }[]>`
+        select codex_connection_id from threads where id = ${originalThreadId}
+      `;
+
+      expect(attempts).toHaveLength(2);
+      expect(attempts[0]?.codex_connection_id).toBe(connection.id);
+      expect(attempts[1]?.codex_connection_id).toBe(fallback.id);
+      expect(thread?.codex_connection_id).toBe(connection.id);
+    },
+  );
 });

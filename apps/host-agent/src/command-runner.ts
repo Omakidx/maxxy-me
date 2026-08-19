@@ -1,10 +1,13 @@
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import {
+  type ControlApprovalDecisionMessage,
   type HostCommandEnvelope,
   hostCommandEnvelopeSchema,
 } from "@maxxy/contracts";
 import { z } from "zod";
+import type { HostRuntimeEventSink } from "./codex-runtime";
+import { HostCodexRuntimeManager } from "./codex-runtime";
 import type { HostAgentConfig } from "./config";
 import { PathGuard } from "./paths";
 import { CodexConnectionRegistry } from "./registry";
@@ -60,8 +63,11 @@ export type CommandResult = {
 };
 
 export class HostCommandRunner {
+  private readonly codexRuntime: HostCodexRuntimeManager;
+
   constructor(
     private readonly config: HostAgentConfig,
+    runtimeEvents: HostRuntimeEventSink = () => undefined,
     private readonly paths = new PathGuard({
       projectRoot: config.projectRoot,
       worktreeRoot: config.worktreeRoot,
@@ -70,7 +76,22 @@ export class HostCommandRunner {
       config.dataDir,
       config.codexAccountsDir,
     ),
-  ) {}
+  ) {
+    this.codexRuntime = new HostCodexRuntimeManager(
+      config,
+      runtimeEvents,
+      this.paths,
+      this.registry,
+    );
+  }
+
+  activeRunIds() {
+    return this.codexRuntime.activeRunIds();
+  }
+
+  async handleApprovalDecision(message: ControlApprovalDecisionMessage) {
+    return this.codexRuntime.resolveApproval(message);
+  }
 
   async handle(rawEnvelope: unknown): Promise<CommandResult> {
     const envelope = hostCommandEnvelopeSchema.parse(rawEnvelope);
@@ -124,14 +145,17 @@ export class HostCommandRunner {
             "Git history and GitHub mutation commands require approval-aware workflow support in a later phase.",
         };
       case "codex.runtime.start":
+        return this.json(
+          await this.codexRuntime.startRuntime(envelope.payload),
+        );
       case "codex.turn.start":
+        return this.json(await this.codexRuntime.startTurn(envelope.payload));
       case "codex.turn.steer":
+        return this.json(await this.codexRuntime.steerTurn(envelope.payload));
       case "codex.turn.interrupt":
-        return {
-          status: "unsupported",
-          error:
-            "Codex runtime process control starts in Phase 6; Phase 5 only prepares host protocol and credential lanes.",
-        };
+        return this.json(
+          await this.codexRuntime.interruptTurn(envelope.payload),
+        );
       default:
         return { status: "unsupported", error: "Unsupported command" };
     }

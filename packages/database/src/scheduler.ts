@@ -26,6 +26,9 @@ type SchedulerConnection = {
   max_concurrent_runs: number;
 };
 
+const eligibleCapacitySql =
+  "(latest.availability is null or latest.availability not in ('cooldown','limited') or latest.reset_at <= now())";
+
 export type SchedulerTickResult = {
   expiredTaskLeases: number;
   expiredCodexConnectionLeases: number;
@@ -51,6 +54,7 @@ export class SchedulerService {
     const expiredTaskLeases = await this.expireTaskLeases();
     const expiredCodexConnectionLeases =
       await this.expireCodexConnectionLeases();
+    await this.recordExpiredCodexLeaseSignals(expiredCodexConnectionLeases);
     const recoveredTasks = await this.recoverExpiredLeaseTasks(
       expiredTaskLeases.map((lease) => lease.task_id),
     );
@@ -84,15 +88,40 @@ export class SchedulerService {
       {
         id: string;
         task_id: string;
+        workspace_id: string;
         codex_connection_id: string;
         capacity_source_id: string;
       }[]
     >`
-      update codex_connection_leases
+      update codex_connection_leases cl
       set status = 'expired', updated_at = now()
-      where status = 'active' and expires_at <= now()
-      returning id, task_id, codex_connection_id, capacity_source_id
+      from tasks t
+      where cl.task_id = t.id
+        and cl.status = 'active'
+        and cl.expires_at <= now()
+      returning cl.id, cl.task_id, t.workspace_id, cl.codex_connection_id, cl.capacity_source_id
     `;
+  }
+
+  private async recordExpiredCodexLeaseSignals(
+    leases: {
+      id: string;
+      task_id: string;
+      workspace_id: string;
+      codex_connection_id: string;
+      capacity_source_id: string;
+    }[],
+  ) {
+    for (const lease of leases) {
+      await appendWorkspaceEvent(this.database, {
+        workspaceId: lease.workspace_id,
+        taskId: lease.task_id,
+        codexConnectionId: lease.codex_connection_id,
+        capacitySourceId: lease.capacity_source_id,
+        type: "codex.connection.lease_released",
+        payload: { leaseId: lease.id, reason: "lease_expired" },
+      });
+    }
   }
 
   private async recoverExpiredLeaseTasks(taskIds: string[]) {
@@ -220,7 +249,7 @@ export class SchedulerService {
               and (w.codex_pool_id is null or w.codex_pool_id = p.id)
               and (t.preferred_codex_pool_id is null or t.preferred_codex_pool_id = p.id)
               and (p.workspace_id is null or p.workspace_id = t.workspace_id)
-              and (latest.availability is null or latest.availability <> 'cooldown' or latest.reset_at <= now())
+              and ${this.database.sql.unsafe(eligibleCapacitySql)}
               and (
                 select count(*)::int
                 from task_leases tl
@@ -288,7 +317,7 @@ export class SchedulerService {
               and (w.codex_pool_id is null or w.codex_pool_id = p.id)
               and (${task.preferred_codex_pool_id ?? null}::text is null or p.id = ${task.preferred_codex_pool_id ?? null})
               and (p.workspace_id is null or p.workspace_id = ${task.workspace_id})
-              and (latest.availability is null or latest.availability <> 'cooldown' or latest.reset_at <= now())
+              and ${this.database.sql.unsafe(eligibleCapacitySql)}
               and (
                 select count(*)::int
                 from codex_connection_leases cl
@@ -337,7 +366,7 @@ export class SchedulerService {
           and (w.codex_pool_id is null or w.codex_pool_id = p.id)
           and (${task.preferred_codex_pool_id ?? null}::text is null or p.id = ${task.preferred_codex_pool_id ?? null})
           and (p.workspace_id is null or p.workspace_id = ${task.workspace_id})
-          and (latest.availability is null or latest.availability <> 'cooldown' or latest.reset_at <= now())
+          and ${this.database.sql.unsafe(eligibleCapacitySql)}
           and (
             select count(*)::int
             from codex_connection_leases cl

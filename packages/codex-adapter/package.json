@@ -8,5 +8,9 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json"
+  },
+  "dependencies": {
+    "@maxxy/contracts": "workspace:*",
+    "zod": "3.25.76"
   }
 }

@@ -1,6 +1,6 @@
 import {
   type HostConnectionReport,
-  hostCommandEnvelopeSchema,
+  hostControlMessageSchema,
   hostProtocolVersion,
 } from "@maxxy/contracts";
 import WebSocket from "ws";
@@ -19,7 +19,6 @@ export class HostAgentRuntime {
   private reconnectDelay: number;
   private heartbeat: ReturnType<typeof setInterval> | undefined;
   private socket: WebSocket | undefined;
-  private readonly activeRuns = new Set<string>();
   private readonly runner: HostCommandRunner;
   private readonly registry: CodexConnectionRegistry;
 
@@ -29,7 +28,15 @@ export class HostAgentRuntime {
       rawConfig.dataDir,
       rawConfig.codexAccountsDir,
     );
-    this.runner = new HostCommandRunner(rawConfig);
+    this.runner = new HostCommandRunner(rawConfig, (message) => {
+      const config = requireEnrolledConfig(this.rawConfig);
+      this.send({
+        type: "host.runtime_event",
+        hostId: config.hostId,
+        ...message,
+        timestamp: new Date().toISOString(),
+      });
+    });
   }
 
   async start() {
@@ -111,7 +118,7 @@ export class HostAgentRuntime {
       inventory,
       capacity: await this.capacity(),
       connections,
-      activeRuns: [...this.activeRuns],
+      activeRuns: this.runner.activeRunIds(),
       timestamp: new Date().toISOString(),
     });
   }
@@ -135,7 +142,7 @@ export class HostAgentRuntime {
         git: inventory.git,
         gh: inventory.gh,
       },
-      activeRunIds: [...this.activeRuns],
+      activeRunIds: this.runner.activeRunIds(),
       timestamp: new Date().toISOString(),
     });
   }
@@ -145,7 +152,7 @@ export class HostAgentRuntime {
     this.send({
       type: "host.reconnect_report",
       hostId: config.hostId,
-      activeRuns: [...this.activeRuns],
+      activeRuns: this.runner.activeRunIds(),
       localEventCount: 0,
       policy: "preserve_orphans",
       timestamp: new Date().toISOString(),
@@ -160,17 +167,26 @@ export class HostAgentRuntime {
       log("warn", "host-agent received invalid json");
       return;
     }
-    const command = hostCommandEnvelopeSchema.safeParse(parsed);
-    if (!command.success) {
+    const control = hostControlMessageSchema.safeParse(parsed);
+    if (!control.success) {
+      return;
+    }
+
+    if (control.data.type === "control.approval_decision") {
+      const handled = await this.runner.handleApprovalDecision(control.data);
+      log("info", "host-agent approval decision received", {
+        approvalId: control.data.approvalId,
+        handled,
+      });
       return;
     }
 
     const startedAt = new Date().toISOString();
-    const result = await this.runner.handle(command.data);
+    const result = await this.runner.handle(control.data);
     this.send({
       type: "host.command_result",
-      commandId: command.data.commandId,
-      command: command.data.command,
+      commandId: control.data.commandId,
+      command: control.data.command,
       status: result.status,
       ...(result.exitCode !== undefined ? { exitCode: result.exitCode } : {}),
       ...(result.output ? { output: result.output } : {}),
@@ -190,8 +206,8 @@ export class HostAgentRuntime {
   private async capacity() {
     return {
       maxConcurrentAgents: this.rawConfig.MAXXY_MAX_CONCURRENT_AGENTS,
-      activeTaskCount: this.activeRuns.size,
-      activeRunIds: [...this.activeRuns],
+      activeTaskCount: this.runner.activeRunIds().length,
+      activeRunIds: this.runner.activeRunIds(),
       disk: await collectDiskAvailability(this.rawConfig),
     };
   }

@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+  approvalDecisionSchema,
+  approvalTypeSchema,
   capacityAvailabilitySchema,
   codexAuthModeSchema,
   codexConnectionStatusSchema,
@@ -33,7 +35,38 @@ export const hostCommandNames = [
   "github.pull_request.update",
 ] as const;
 
+export const normalizedRuntimeEventNames = [
+  "agent.status_changed",
+  "agent.message_delta",
+  "agent.message_completed",
+  "command.started",
+  "command.output",
+  "command.completed",
+  "file_change.started",
+  "file_change.completed",
+  "approval.requested",
+  "approval.resolved",
+  "turn.completed",
+  "turn.failed",
+  "runtime.disconnected",
+] as const;
+
+export const codexCapacitySignalNames = [
+  "codex.connection.ready",
+  "codex.connection.authentication_required",
+  "codex.connection.policy_blocked",
+  "codex.capacity.observed",
+  "codex.capacity.limited",
+  "codex.capacity.cooldown_started",
+  "codex.capacity.cooldown_ended",
+  "codex.connection.lease_released",
+] as const;
+
 export const hostCommandNameSchema = z.enum(hostCommandNames);
+export const normalizedRuntimeEventNameSchema = z.enum(
+  normalizedRuntimeEventNames,
+);
+export const codexCapacitySignalNameSchema = z.enum(codexCapacitySignalNames);
 
 export const hostToolStatusSchema = z.object({
   available: z.boolean(),
@@ -143,6 +176,35 @@ export const hostReconnectReportMessageSchema = z.object({
   timestamp: z.string().datetime({ offset: true }),
 });
 
+export const normalizedRuntimeEventSchema = z.object({
+  type: normalizedRuntimeEventNameSchema,
+  payload: z.record(z.string(), z.unknown()).default({}),
+});
+
+export const hostRuntimeEventMessageSchema = z.object({
+  type: z.literal("host.runtime_event"),
+  hostId: z.string().min(1),
+  runId: z.string().min(1),
+  workspaceId: z.string().min(1).optional(),
+  taskId: z.string().min(1).optional(),
+  attemptId: z.string().min(1).optional(),
+  threadId: z.string().min(1).optional(),
+  turnId: z.string().min(1).optional(),
+  codexConnectionId: z.string().min(1).optional(),
+  capacitySourceId: z.string().min(1).optional(),
+  event: normalizedRuntimeEventSchema,
+  timestamp: z.string().datetime({ offset: true }),
+});
+
+export const controlApprovalDecisionMessageSchema = z.object({
+  type: z.literal("control.approval_decision"),
+  approvalId: z.string().min(1),
+  decision: approvalDecisionSchema,
+  taskId: z.string().min(1).optional(),
+  runId: z.string().min(1).optional(),
+  decidedAt: z.string().datetime({ offset: true }),
+});
+
 export const clientHelloMessageSchema = z.object({
   type: z.literal("client.hello"),
   client: z.string().max(120).optional(),
@@ -160,9 +222,28 @@ export const hostClientMessageSchema = z.discriminatedUnion("type", [
   hostHeartbeatMessageSchema,
   hostCommandResultMessageSchema,
   hostReconnectReportMessageSchema,
+  hostRuntimeEventMessageSchema,
 ]);
 
+export const hostControlMessageSchema = z.discriminatedUnion("type", [
+  hostCommandEnvelopeSchema,
+  controlApprovalDecisionMessageSchema,
+]);
+
+export const approvalRequestedPayloadSchema = z.object({
+  approvalId: z.string().min(1).optional(),
+  approvalType: approvalTypeSchema.default("command"),
+  title: z.string().max(200).optional(),
+  request: z.record(z.string(), z.unknown()).default({}),
+});
+
 export type HostCommandName = z.infer<typeof hostCommandNameSchema>;
+export type NormalizedRuntimeEventName = z.infer<
+  typeof normalizedRuntimeEventNameSchema
+>;
+export type CodexCapacitySignalName = z.infer<
+  typeof codexCapacitySignalNameSchema
+>;
 export type HostToolStatus = z.infer<typeof hostToolStatusSchema>;
 export type HostToolInventory = z.infer<typeof hostToolInventorySchema>;
 export type HostConnectionReport = z.infer<typeof hostConnectionReportSchema>;
@@ -176,4 +257,14 @@ export type HostCommandResultMessage = z.infer<
 export type HostReconnectReportMessage = z.infer<
   typeof hostReconnectReportMessageSchema
 >;
+export type NormalizedRuntimeEvent = z.infer<
+  typeof normalizedRuntimeEventSchema
+>;
+export type HostRuntimeEventMessage = z.infer<
+  typeof hostRuntimeEventMessageSchema
+>;
+export type ControlApprovalDecisionMessage = z.infer<
+  typeof controlApprovalDecisionMessageSchema
+>;
 export type HostClientMessage = z.infer<typeof hostClientMessageSchema>;
+export type HostControlMessage = z.infer<typeof hostControlMessageSchema>;

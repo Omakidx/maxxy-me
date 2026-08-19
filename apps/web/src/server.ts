@@ -1,5 +1,10 @@
 import { createServer } from "node:http";
-import type { HostClientMessage, HostConnectionReport } from "@maxxy/contracts";
+import {
+  approvalRequestedPayloadSchema,
+  type ControlApprovalDecisionMessage,
+  type HostClientMessage,
+  type HostConnectionReport,
+} from "@maxxy/contracts";
 import { appendWorkspaceEvent } from "@maxxy/database";
 import next from "next";
 import type { RawData, WebSocket } from "ws";
@@ -38,6 +43,7 @@ const app = next({ dev, dir: process.cwd(), hostname, port });
 const handle = app.getRequestHandler();
 const wsOptions = getWebSocketOptions();
 const authenticatedUpgrades = new WeakMap<object, WebSocketAuth>();
+const hostSockets = new Map<string, Set<WebSocket>>();
 const sensitiveTelemetryKey =
   /(^|_)(api[-_]?key|access[-_]?token|refresh[-_]?token|authorization|password|secret|auth[-_]?json)($|_)/i;
 
@@ -69,7 +75,11 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  if (await handleControlPlaneApi(request, response)) {
+  if (
+    await handleControlPlaneApi(request, response, {
+      onApprovalDecision: broadcastApprovalDecision,
+    })
+  ) {
     return;
   }
 
@@ -112,6 +122,13 @@ sockets.on("connection", (socket, request) => {
     }),
   );
 
+  if (upgradeAuth.kind === "host") {
+    const hostId = upgradeAuth.host.host.id;
+    const current = hostSockets.get(hostId) ?? new Set<WebSocket>();
+    current.add(socket);
+    hostSockets.set(hostId, current);
+  }
+
   const expiry =
     upgradeAuth.kind === "owner"
       ? setTimeout(() => {
@@ -133,11 +150,30 @@ sockets.on("connection", (socket, request) => {
     Number(process.env.WS_HEARTBEAT_INTERVAL_MS ?? 25000),
   );
 
+  let messageQueue = Promise.resolve();
   socket.on("message", (message) => {
-    void handleWebSocketMessage(socket, upgradeAuth, message);
+    messageQueue = messageQueue
+      .then(() => handleWebSocketMessage(socket, upgradeAuth, message))
+      .catch((error: unknown) => {
+        socket.send(
+          JSON.stringify({ type: "security.error", code: "message_failed" }),
+        );
+        log("warn", "websocket message handler failed", {
+          kind: upgradeAuth.kind,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
   });
 
   socket.on("close", () => {
+    if (upgradeAuth.kind === "host") {
+      const hostId = upgradeAuth.host.host.id;
+      const current = hostSockets.get(hostId);
+      current?.delete(socket);
+      if (current?.size === 0) {
+        hostSockets.delete(hostId);
+      }
+    }
     if (expiry) {
       clearTimeout(expiry);
     }
@@ -214,6 +250,10 @@ async function handleHostProtocolMessage(
     });
     return;
   }
+  if (message.type === "host.runtime_event") {
+    await persistHostRuntimeEvent(authenticatedHostId, message);
+    return;
+  }
   if (message.type === "host.command_result") {
     await appendWorkspaceEvent(requireDb(), {
       hostId: authenticatedHostId,
@@ -227,6 +267,226 @@ async function handleHostProtocolMessage(
         error: message.error,
       },
     });
+  }
+}
+
+async function persistHostRuntimeEvent(
+  authenticatedHostId: string,
+  message: Extract<HostClientMessage, { type: "host.runtime_event" }>,
+) {
+  const database = requireDb();
+  if (message.hostId !== authenticatedHostId) {
+    throw new Error("runtime event did not match authenticated host");
+  }
+
+  await upsertRuntimeThreadAndTurn(message);
+  await persistCommandRuntimeEvent(message);
+
+  if (message.event.type === "approval.requested") {
+    await persistApprovalRequest(message);
+  }
+  if (message.event.type === "turn.completed") {
+    await markRuntimeCompleted(message);
+  }
+  if (
+    message.event.type === "turn.failed" ||
+    message.event.type === "runtime.disconnected"
+  ) {
+    await markRuntimeFailed(message);
+  }
+
+  await appendWorkspaceEvent(database, {
+    ...(message.workspaceId ? { workspaceId: message.workspaceId } : {}),
+    ...(message.taskId ? { taskId: message.taskId } : {}),
+    hostId: authenticatedHostId,
+    runId: message.runId,
+    ...(message.attemptId ? { attemptId: message.attemptId } : {}),
+    ...(message.codexConnectionId
+      ? { codexConnectionId: message.codexConnectionId }
+      : {}),
+    ...(message.capacitySourceId
+      ? { capacitySourceId: message.capacitySourceId }
+      : {}),
+    type: message.event.type,
+    payload: sanitizeTelemetry({
+      ...message.event.payload,
+      ...(message.threadId ? { threadId: message.threadId } : {}),
+      ...(message.turnId ? { turnId: message.turnId } : {}),
+    }) as Record<string, unknown>,
+  });
+}
+
+async function upsertRuntimeThreadAndTurn(
+  message: Extract<HostClientMessage, { type: "host.runtime_event" }>,
+) {
+  const payload = message.event.payload;
+  if (message.taskId && message.threadId) {
+    await requireDb().sql`
+      insert into threads (id, task_id, attempt_id, codex_connection_id, provider_thread_id, status)
+      values (
+        ${message.threadId}, ${message.taskId}, ${message.attemptId ?? null},
+        ${message.codexConnectionId ?? null}, ${stringPayload(payload.providerThreadId) ?? null},
+        ${
+          message.event.type === "turn.completed"
+            ? "completed"
+            : message.event.type === "turn.failed" ||
+                message.event.type === "runtime.disconnected"
+              ? "failed"
+              : "running"
+        }
+      )
+      on conflict (id) do update
+      set provider_thread_id = coalesce(excluded.provider_thread_id, threads.provider_thread_id),
+          status = case
+            when excluded.status = 'running' and threads.status in ('completed','failed') then threads.status
+            else excluded.status
+          end,
+          updated_at = now()
+    `;
+    if (message.attemptId) {
+      await requireDb().sql`
+        update task_runtime_attempts
+        set thread_id = ${message.threadId}, updated_at = now()
+        where id = ${message.attemptId}
+      `;
+    }
+  }
+
+  if (message.threadId && message.turnId) {
+    await requireDb().sql`
+      insert into turns (id, thread_id, provider_turn_id, status, started_at, completed_at, payload)
+      values (
+        ${message.turnId}, ${message.threadId}, ${stringPayload(payload.providerTurnId) ?? null},
+        ${turnStatusFor(message.event.type)},
+        case when ${message.event.type} = 'agent.status_changed' then now() else null end,
+        case when ${message.event.type} in ('turn.completed', 'turn.failed', 'runtime.disconnected') then now() else null end,
+        ${JSON.stringify(sanitizeTelemetry(payload))}::jsonb
+      )
+      on conflict (id) do update
+      set provider_turn_id = coalesce(excluded.provider_turn_id, turns.provider_turn_id),
+          status = excluded.status,
+          completed_at = coalesce(excluded.completed_at, turns.completed_at),
+          payload = turns.payload || excluded.payload,
+          updated_at = now()
+    `;
+  }
+}
+
+async function persistCommandRuntimeEvent(
+  message: Extract<HostClientMessage, { type: "host.runtime_event" }>,
+) {
+  const commandId = stringPayload(message.event.payload.commandId);
+  if (!commandId || !message.taskId) {
+    return;
+  }
+
+  if (message.event.type === "command.started") {
+    await requireDb().sql`
+      insert into commands (id, task_id, command, cwd, status, started_at)
+      values (${commandId}, ${message.taskId}, ${stringPayload(message.event.payload.command) ?? "unknown"}, ${stringPayload(message.event.payload.cwd) ?? null}, 'running', now())
+      on conflict (id) do update
+      set status = 'running', started_at = coalesce(commands.started_at, now()), updated_at = now()
+    `;
+  }
+  if (message.event.type === "command.output") {
+    await requireDb().sql`
+      update commands
+      set output = coalesce(output, '') || ${stringPayload(message.event.payload.output) ?? ""},
+          updated_at = now()
+      where id = ${commandId}
+    `;
+  }
+  if (message.event.type === "command.completed") {
+    const exitCode = numberPayload(message.event.payload.exitCode);
+    await requireDb().sql`
+      update commands
+      set status = case when ${exitCode ?? 0} = 0 then 'completed' else 'failed' end,
+          exit_code = ${exitCode ?? null},
+          completed_at = now(),
+          updated_at = now()
+      where id = ${commandId}
+    `;
+  }
+}
+
+async function persistApprovalRequest(
+  message: Extract<HostClientMessage, { type: "host.runtime_event" }>,
+) {
+  const parsed = approvalRequestedPayloadSchema.parse(message.event.payload);
+  const approvalId = parsed.approvalId ?? `approval_${crypto.randomUUID()}`;
+  await requireDb().sql`
+    insert into approvals (id, task_id, type, requested_payload)
+    values (
+      ${approvalId}, ${message.taskId ?? null}, ${parsed.approvalType},
+      ${JSON.stringify(sanitizeTelemetry({ ...parsed.request, runId: message.runId }))}::jsonb
+    )
+    on conflict (id) do nothing
+  `;
+  if (message.taskId) {
+    await requireDb().sql`
+      update tasks
+      set status = 'awaiting_approval', updated_at = now()
+      where id = ${message.taskId}
+        and status in ('starting', 'running', 'blocked', 'claimed', 'assigned')
+    `;
+  }
+}
+
+async function markRuntimeCompleted(
+  message: Extract<HostClientMessage, { type: "host.runtime_event" }>,
+) {
+  if (!message.taskId) {
+    return;
+  }
+  await requireDb().sql`
+    update tasks
+    set status = 'validating', updated_at = now()
+    where id = ${message.taskId}
+      and status in ('starting', 'running', 'awaiting_approval', 'blocked', 'claimed', 'assigned')
+  `;
+}
+
+async function markRuntimeFailed(
+  message: Extract<HostClientMessage, { type: "host.runtime_event" }>,
+) {
+  if (!message.taskId) {
+    return;
+  }
+  await requireDb().sql`
+    update tasks
+    set status = 'failed', updated_at = now()
+    where id = ${message.taskId} and status not in ('merged', 'cancelled')
+  `;
+}
+
+function turnStatusFor(eventType: string) {
+  if (eventType === "turn.completed") {
+    return "completed";
+  }
+  if (eventType === "turn.failed" || eventType === "runtime.disconnected") {
+    return "failed";
+  }
+  if (eventType === "approval.requested") {
+    return "awaiting_approval";
+  }
+  return "running";
+}
+
+function stringPayload(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+function numberPayload(value: unknown) {
+  return typeof value === "number" ? value : undefined;
+}
+
+function broadcastApprovalDecision(message: ControlApprovalDecisionMessage) {
+  for (const sockets of hostSockets.values()) {
+    for (const socket of sockets) {
+      if (socket.readyState === socket.OPEN) {
+        socket.send(JSON.stringify(message));
+      }
+    }
   }
 }
 
@@ -324,18 +584,89 @@ async function persistConnectionReports(
         and disabled_at is null
     `;
     if (connection.capacitySourceId) {
+      const availability = connection.availability ?? "unknown";
       await database.sql`
         insert into codex_capacity_snapshots (
           id, capacity_source_id, reporting_connection_id, availability,
           remaining_percent, reset_at, observation_source, observed_at, payload
         ) values (
           ${`capsnap_${crypto.randomUUID()}`}, ${connection.capacitySourceId},
-          ${connection.codexConnectionId}, ${connection.availability},
+          ${connection.codexConnectionId}, ${availability},
           ${connection.remainingPercent ?? null},
           ${connection.resetAt ? new Date(connection.resetAt) : null},
           'codex_status', now(), ${JSON.stringify(sanitizeTelemetry(connection.health))}::jsonb
         )
       `;
+      await appendWorkspaceEvent(database, {
+        hostId,
+        codexConnectionId: connection.codexConnectionId,
+        capacitySourceId: connection.capacitySourceId,
+        type: "codex.capacity.observed",
+        payload: sanitizeTelemetry({
+          availability,
+          remainingPercent: connection.remainingPercent,
+          resetAt: connection.resetAt,
+          status: connection.status,
+        }) as Record<string, unknown>,
+      });
+      if (
+        connection.status === "ready_chatgpt" ||
+        connection.status === "ready_api_key" ||
+        connection.status === "ready_enterprise_access_token"
+      ) {
+        await appendWorkspaceEvent(database, {
+          hostId,
+          codexConnectionId: connection.codexConnectionId,
+          capacitySourceId: connection.capacitySourceId,
+          type: "codex.connection.ready",
+          payload: { authMode: connection.authMode },
+        });
+      } else if (
+        connection.status === "signed_out" ||
+        connection.status === "authenticating" ||
+        connection.status === "expired"
+      ) {
+        await appendWorkspaceEvent(database, {
+          hostId,
+          codexConnectionId: connection.codexConnectionId,
+          capacitySourceId: connection.capacitySourceId,
+          type: "codex.connection.authentication_required",
+          payload: { authMode: connection.authMode, status: connection.status },
+        });
+      } else if (connection.status === "policy_blocked") {
+        await appendWorkspaceEvent(database, {
+          hostId,
+          codexConnectionId: connection.codexConnectionId,
+          capacitySourceId: connection.capacitySourceId,
+          type: "codex.connection.policy_blocked",
+          payload: { authMode: connection.authMode },
+        });
+      }
+      if (availability === "limited") {
+        await appendWorkspaceEvent(database, {
+          hostId,
+          codexConnectionId: connection.codexConnectionId,
+          capacitySourceId: connection.capacitySourceId,
+          type: "codex.capacity.limited",
+          payload: { remainingPercent: connection.remainingPercent },
+        });
+      } else if (availability === "cooldown") {
+        await appendWorkspaceEvent(database, {
+          hostId,
+          codexConnectionId: connection.codexConnectionId,
+          capacitySourceId: connection.capacitySourceId,
+          type: "codex.capacity.cooldown_started",
+          payload: { resetAt: connection.resetAt },
+        });
+      } else if (availability === "available") {
+        await appendWorkspaceEvent(database, {
+          hostId,
+          codexConnectionId: connection.codexConnectionId,
+          capacitySourceId: connection.capacitySourceId,
+          type: "codex.capacity.cooldown_ended",
+          payload: { remainingPercent: connection.remainingPercent },
+        });
+      }
     }
   }
 }

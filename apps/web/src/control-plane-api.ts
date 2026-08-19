@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { ControlApprovalDecisionMessage } from "@maxxy/contracts";
 import {
   ControlPlaneRepository,
   HostEnrollmentRepository,
@@ -137,9 +138,14 @@ const approvalDecisionRequestSchema = z.object({
   decision: approvalDecisionSchema,
 });
 
+export type ControlPlaneApiHooks = {
+  onApprovalDecision?: (message: ControlApprovalDecisionMessage) => void;
+};
+
 export async function handleControlPlaneApi(
   request: IncomingMessage,
   response: ServerResponse,
+  hooks: ControlPlaneApiHooks = {},
 ) {
   const url = new URL(
     request.url ?? "/",
@@ -507,6 +513,16 @@ export async function handleControlPlaneApi(
         approval.id,
         { decision: body.decision },
       );
+      hooks.onApprovalDecision?.({
+        type: "control.approval_decision",
+        approvalId: approval.id,
+        decision: body.decision,
+        ...(approval.task_id ? { taskId: approval.task_id } : {}),
+        ...(runIdFromApproval(approval.requested_payload)
+          ? { runId: runIdFromApproval(approval.requested_payload) }
+          : {}),
+        decidedAt: new Date().toISOString(),
+      });
       sendJson(response, 200, { approval });
       return true;
     }
@@ -548,6 +564,14 @@ function isControlPlanePath(pathname: string) {
     pathname === "/api/approvals" ||
     pathname.startsWith("/api/approvals/")
   );
+}
+
+function runIdFromApproval(payload: unknown) {
+  if (!payload || typeof payload !== "object" || !("runId" in payload)) {
+    return undefined;
+  }
+  const runId = payload.runId;
+  return typeof runId === "string" ? runId : undefined;
 }
 
 function scopeFor(method: string, pathname: string) {

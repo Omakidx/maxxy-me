@@ -52,4 +52,42 @@ describe("CodexConnectionRegistry", () => {
       "codexconn_b",
     ]);
   });
+
+  test("rejects shared credential slots for active runtime connections", async () => {
+    const root = await mkdtemp(
+      path.join(tmpdir(), "maxxy-registry-shared-slot-"),
+    );
+    const registry = CodexConnectionRegistry.at(root, path.join(root, "codex"));
+    await registry.register({
+      codexConnectionId: "codexconn_a",
+      credentialSlotId: "shared-slot",
+      authMode: "chatgpt",
+      status: "ready_chatgpt",
+    });
+
+    await expect(
+      registry.register({
+        codexConnectionId: "codexconn_b",
+        credentialSlotId: "shared-slot",
+        authMode: "chatgpt",
+        status: "ready_chatgpt",
+      }),
+    ).rejects.toThrow("Credential slot is already assigned");
+  });
+
+  test("runtime resolution rejects disabled connections", async () => {
+    const root = await mkdtemp(
+      path.join(tmpdir(), "maxxy-registry-runtime-status-"),
+    );
+    const registry = CodexConnectionRegistry.at(root, path.join(root, "codex"));
+    await registry.register({
+      codexConnectionId: "codexconn_disabled",
+      authMode: "chatgpt",
+      status: "disabled",
+    });
+
+    await expect(
+      registry.resolveForRuntime("codexconn_disabled"),
+    ).rejects.toThrow("not runnable");
+  });
 });

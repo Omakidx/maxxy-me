@@ -58,6 +58,12 @@ const envSchema = z.object({
     .default(10 * 1024 * 1024),
   MAXXY_PROTOCOL_VERSION: z.coerce.number().int().positive().default(1),
   CODEX_BINARY: z.string().min(1).default("codex"),
+  CODEX_APP_SERVER_ARGS: z.string().default("app-server"),
+  MAXXY_CODEX_TURN_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30 * 60 * 1000),
   GIT_BINARY: z.string().min(1).default("git"),
   GH_BINARY: z.string().min(1).default("gh"),
   HOST_ALLOWED_COMMAND_PROFILES: z.string().default("default"),

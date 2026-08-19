@@ -3,6 +3,25 @@ import path from "node:path";
 import type { HostConnectionReport } from "@maxxy/contracts";
 import { z } from "zod";
 
+const runnableStatuses = [
+  "ready_chatgpt",
+  "ready_api_key",
+  "ready_enterprise_access_token",
+] as const;
+const blockedRuntimeStatuses = [
+  "unknown",
+  "not_installed",
+  "signed_out",
+  "authenticating",
+  "limited",
+  "cooldown",
+  "expired",
+  "disabled",
+  "policy_blocked",
+  "revoked",
+  "error",
+] as const;
+
 const connectionSchema = z.object({
   codexConnectionId: z.string().min(1),
   label: z.string().optional(),
@@ -36,6 +55,9 @@ const registrySchema = z.object({
 });
 
 export type CodexRegistryEntry = z.infer<typeof connectionSchema>;
+export type RuntimeCodexConnection = Omit<CodexRegistryEntry, "secretRef"> & {
+  status: (typeof runnableStatuses)[number];
+};
 export type RegisterConnectionInput = {
   codexConnectionId: string;
   label?: string;
@@ -73,10 +95,24 @@ export class CodexConnectionRegistry {
   async register(input: RegisterConnectionInput) {
     const registry = await this.read();
     const credentialSlotId = input.credentialSlotId ?? input.codexConnectionId;
-    const credentialDir = path.join(
+    const credentialDir = path.resolve(
       this.codexAccountsDir,
       sanitizeSegment(credentialSlotId),
     );
+    this.assertCredentialDirInsideAccountsRoot(credentialDir);
+
+    const conflict = registry.connections.find(
+      (entry) =>
+        !entry.removedAt &&
+        entry.codexConnectionId !== input.codexConnectionId &&
+        path.resolve(entry.credentialDir) === credentialDir,
+    );
+    if (conflict) {
+      throw new Error(
+        `Credential slot is already assigned to ${conflict.codexConnectionId}`,
+      );
+    }
+
     await mkdir(credentialDir, { recursive: true, mode: 0o700 });
     await writeFile(
       path.join(credentialDir, "config.toml"),
@@ -106,8 +142,8 @@ export class CodexConnectionRegistry {
       registry.connections[index] = {
         ...registry.connections[index],
         ...next,
-        removedAt: undefined,
       };
+      delete registry.connections[index].removedAt;
     } else {
       registry.connections.push(next);
     }
@@ -131,6 +167,54 @@ export class CodexConnectionRegistry {
     entry.status = status;
     await this.write(registry);
     return entry;
+  }
+
+  async resolveForRuntime(
+    codexConnectionId: string,
+    activeLeaseCount = 0,
+  ): Promise<RuntimeCodexConnection> {
+    const registry = await this.read();
+    const matches = registry.connections.filter(
+      (entry) =>
+        !entry.removedAt && entry.codexConnectionId === codexConnectionId,
+    );
+    if (matches.length !== 1) {
+      throw new Error(
+        `Codex connection must resolve to exactly one local credential lane: ${codexConnectionId}`,
+      );
+    }
+
+    const entry = matches[0];
+    if (!entry) {
+      throw new Error(`Codex connection is not registered: `);
+    }
+    this.assertCredentialDirInsideAccountsRoot(entry.credentialDir);
+    const reportedStatus = await this.reportedStatus(entry);
+    if (!isRunnableStatus(reportedStatus)) {
+      const reason = blockedRuntimeStatuses.includes(
+        reportedStatus as (typeof blockedRuntimeStatuses)[number],
+      )
+        ? reportedStatus
+        : "unknown";
+      throw new Error(`Codex connection is not runnable: ${reason}`);
+    }
+    if (activeLeaseCount >= entry.maxConcurrentRuns) {
+      throw new Error("Codex connection has no available active run lanes");
+    }
+
+    const activeWithSameCredentialDir = registry.connections.filter(
+      (candidate) =>
+        !candidate.removedAt &&
+        candidate.codexConnectionId !== entry.codexConnectionId &&
+        path.resolve(candidate.credentialDir) ===
+          path.resolve(entry.credentialDir),
+    );
+    if (activeWithSameCredentialDir.length > 0) {
+      throw new Error("Credential directory is shared by multiple connections");
+    }
+
+    const { secretRef: _secretRef, ...sanitized } = entry;
+    return { ...sanitized, status: reportedStatus };
   }
 
   async remove(codexConnectionId: string, activeLeaseCount = 0) {
@@ -188,6 +272,21 @@ export class CodexConnectionRegistry {
     }
   }
 
+  private assertCredentialDirInsideAccountsRoot(credentialDir: string) {
+    const root = path.resolve(this.codexAccountsDir);
+    const resolved = path.resolve(credentialDir);
+    const relative = path.relative(root, resolved);
+    if (
+      relative === "" ||
+      (!relative.startsWith("..") && !path.isAbsolute(relative))
+    ) {
+      return;
+    }
+    throw new Error(
+      "Credential directory is outside the configured Codex accounts root",
+    );
+  }
+
   private async read(): Promise<{ connections: CodexRegistryEntry[] }> {
     try {
       return registrySchema.parse(
@@ -219,6 +318,12 @@ export class CodexConnectionRegistry {
       },
     );
   }
+}
+
+function isRunnableStatus(
+  status: CodexRegistryEntry["status"],
+): status is (typeof runnableStatuses)[number] {
+  return (runnableStatuses as readonly string[]).includes(status);
 }
 
 function sanitizeSegment(value: string) {
