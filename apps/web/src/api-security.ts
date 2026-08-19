@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { hostClientMessageSchema } from "@maxxy/contracts";
 import {
   AuthRepository,
   createDatabase,
@@ -75,21 +76,7 @@ const wsTicketSchema = z.object({
   purpose: z.enum(["control", "host"]).default("control"),
   ttlSeconds: z.number().int().min(10).max(300).optional(),
 });
-export const websocketMessageSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("client.hello"),
-    client: z.string().max(120).optional(),
-  }),
-  z.object({
-    type: z.literal("client.pong"),
-    timestamp: z.string().datetime().optional(),
-  }),
-  z.object({
-    type: z.literal("host.heartbeat"),
-    activeRuns: z.number().int().min(0).max(100),
-    timestamp: z.string().datetime().optional(),
-  }),
-]);
+export const websocketMessageSchema = hostClientMessageSchema;
 
 export type Identity = {
   kind: "session" | "api_token";
@@ -110,6 +97,20 @@ type WebSocketTicket = {
   identity: Identity;
   purpose: "control" | "host";
 };
+
+export type HostWebSocketIdentity = {
+  tokenId: string;
+  host: {
+    id: string;
+    name: string;
+    status: string;
+  };
+};
+
+export type WebSocketAuth =
+  | { ok: true; kind: "owner"; ticket: WebSocketTicket }
+  | { ok: true; kind: "host"; host: HostWebSocketIdentity }
+  | { ok: false; code: number; reason: string };
 
 type AuthResult =
   | { ok: true; identity: Identity; csrfRequired: boolean }
@@ -296,27 +297,35 @@ export async function handleSecurityApi(
   }
 }
 
-export function authenticateWebSocketUpgrade(request: IncomingMessage) {
+export async function authenticateWebSocketUpgrade(
+  request: IncomingMessage,
+): Promise<WebSocketAuth> {
   const requestUrl = getRequestUrl(request);
 
   if (!validateTrustedOrigin(request)) {
-    return { ok: false as const, code: 1008, reason: "untrusted origin" };
+    return { ok: false, code: 1008, reason: "untrusted origin" };
   }
 
   if (nodeEnv === "production" && !isSecureForwardedRequest(request)) {
     return {
-      ok: false as const,
+      ok: false,
       code: 1008,
       reason: "secure websocket required",
     };
   }
 
+  const hostId = hostIdFromRequest(request);
+  const hostToken = bearerTokenFromRequest(request);
+  if (hostId || hostToken) {
+    return authenticateHostWebSocket(hostId, hostToken);
+  }
+
   const ticket = requestUrl.searchParams.get("ticket");
   if (!ticket) {
     return {
-      ok: false as const,
+      ok: false,
       code: 1008,
-      reason: "websocket ticket required",
+      reason: "websocket ticket or host credentials required",
     };
   }
 
@@ -327,13 +336,67 @@ export function authenticateWebSocketUpgrade(request: IncomingMessage) {
 
   if (!stored || stored.expiresAt <= new Date()) {
     return {
-      ok: false as const,
+      ok: false,
       code: 1008,
       reason: "websocket ticket expired",
     };
   }
 
-  return { ok: true as const, ticket: stored };
+  return { ok: true, kind: "owner", ticket: stored };
+}
+
+function hostIdFromRequest(request: IncomingMessage) {
+  const value = request.headers["x-maxxy-host-id"];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function bearerTokenFromRequest(request: IncomingMessage) {
+  const authorization = request.headers.authorization;
+  if (!authorization?.startsWith("Bearer ")) {
+    return undefined;
+  }
+  return authorization.slice("Bearer ".length).trim();
+}
+
+async function authenticateHostWebSocket(
+  hostId: string | undefined,
+  hostToken: string | undefined,
+): Promise<WebSocketAuth> {
+  if (!hostId || !hostToken) {
+    return { ok: false, code: 1008, reason: "host credentials incomplete" };
+  }
+  if (!database) {
+    return { ok: false, code: 1011, reason: "database unavailable" };
+  }
+
+  const rate = rateLimiter.check(`host-ws:${hostId}`, 120, 60_000);
+  if (!rate.allowed) {
+    return { ok: false, code: 1008, reason: "host websocket rate limited" };
+  }
+
+  const verified = await new HostEnrollmentRepository(
+    database.db,
+  ).verifyHostToken(hashSecret(hostToken));
+  if (
+    !verified ||
+    verified.hostId !== hostId ||
+    verified.status === "revoked"
+  ) {
+    return { ok: false, code: 1008, reason: "host token invalid" };
+  }
+
+  return {
+    ok: true,
+    kind: "host",
+    host: {
+      tokenId: verified.tokenId,
+      host: {
+        id: verified.hostId,
+        name: verified.name,
+        status: verified.status,
+      },
+    },
+  };
 }
 
 async function handleBootstrap(

@@ -1,90 +1,70 @@
-import { z } from "zod";
+import { loadConfig } from "./config";
+import { exchangeEnrollment } from "./enroll";
+import { log } from "./logger";
+import { CodexConnectionRegistry } from "./registry";
+import { HostAgentRuntime } from "./runtime";
+import { loadStoredHostConfig, saveStoredHostConfig } from "./state";
+import { collectToolInventory } from "./tools";
 
-const env = z.object({
-  MAXXY_CONTROL_PLANE_URL: z.string().url(),
-  MAXXY_HOST_ID: z.string().min(1).default("phase0-local-host"),
-  MAXXY_HOST_NAME: z.string().min(1).default("Phase 0 Local Host"),
-  MAXXY_HEARTBEAT_INTERVAL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(15000),
-  MAXXY_RECONNECT_MIN_DELAY_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(1000),
-  MAXXY_RECONNECT_MAX_DELAY_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(30000),
-});
-
-const config = env.parse(process.env);
-
-function log(
-  level: "info" | "warn" | "error",
-  message: string,
-  fields: Record<string, string | number> = {},
-) {
-  console[level](
-    JSON.stringify({
-      level,
-      service: "maxxy-host-agent",
-      message,
-      hostId: config.MAXXY_HOST_ID,
-      timestamp: new Date().toISOString(),
-      ...fields,
-    }),
-  );
+function argValue(args: string[], name: string) {
+  const index = args.indexOf(name);
+  return index >= 0 ? args[index + 1] : undefined;
 }
 
-function websocketUrl() {
-  const url = new URL(config.MAXXY_CONTROL_PLANE_URL);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = "/api/ws";
-  return url.toString();
-}
+async function main() {
+  const [command = "start", ...args] = process.argv.slice(2);
+  const preConfig = loadConfig();
+  const stored = await loadStoredHostConfig(preConfig.dataDir);
+  const config = loadConfig(stored);
 
-let reconnectDelay = config.MAXXY_RECONNECT_MIN_DELAY_MS;
-
-function connect() {
-  const socket = new WebSocket(websocketUrl());
-  let heartbeat: Timer | undefined;
-
-  socket.addEventListener("open", () => {
-    reconnectDelay = config.MAXXY_RECONNECT_MIN_DELAY_MS;
-    log("info", "host-agent websocket connected");
-    heartbeat = setInterval(() => {
-      socket.send(
-        JSON.stringify({
-          type: "host.heartbeat",
-          hostId: config.MAXXY_HOST_ID,
-          hostName: config.MAXXY_HOST_NAME,
-          protocolVersion: process.env.MAXXY_PROTOCOL_VERSION ?? "1",
-          timestamp: new Date().toISOString(),
-        }),
+  if (command === "enroll") {
+    const server = argValue(args, "--server") ?? config.controlPlaneUrl;
+    const token = argValue(args, "--token");
+    if (!server || !token) {
+      throw new Error(
+        "Usage: maxxy-host enroll --server <url> --token <one-time-token>",
       );
-    }, config.MAXXY_HEARTBEAT_INTERVAL_MS);
-  });
-
-  socket.addEventListener("close", () => {
-    if (heartbeat) {
-      clearInterval(heartbeat);
     }
-    log("warn", "host-agent websocket closed", { reconnectDelay });
-    setTimeout(connect, reconnectDelay);
-    reconnectDelay = Math.min(
-      reconnectDelay * 2,
-      config.MAXXY_RECONNECT_MAX_DELAY_MS,
-    );
-  });
+    const enrolled = await exchangeEnrollment({
+      serverUrl: server,
+      enrollmentToken: token,
+      config,
+    });
+    await saveStoredHostConfig(config.dataDir, enrolled);
+    log("info", "host enrolled", {
+      hostId: enrolled.hostId,
+      hostName: enrolled.hostName,
+    });
+    return;
+  }
 
-  socket.addEventListener("error", () => {
-    log("error", "host-agent websocket error");
-    socket.close();
-  });
+  if (command === "doctor") {
+    const inventory = await collectToolInventory(config);
+    console.log(JSON.stringify({ inventory }, null, 2));
+    return;
+  }
+
+  if (command === "registry") {
+    const registry = CodexConnectionRegistry.at(
+      config.dataDir,
+      config.codexAccountsDir,
+    );
+    console.log(
+      JSON.stringify({ connections: await registry.list() }, null, 2),
+    );
+    return;
+  }
+
+  if (command !== "start") {
+    throw new Error(`Unknown host-agent command: ${command}`);
+  }
+
+  await new HostAgentRuntime(config).start();
 }
 
-connect();
+main().catch((error: unknown) => {
+  log("error", "host-agent failed", {
+    error: error instanceof Error ? error.message : String(error),
+  });
+  process.exit(1);
+});

@@ -1,12 +1,16 @@
 import { createServer } from "node:http";
+import type { HostClientMessage, HostConnectionReport } from "@maxxy/contracts";
+import { appendWorkspaceEvent } from "@maxxy/database";
 import next from "next";
-import type { RawData } from "ws";
+import type { RawData, WebSocket } from "ws";
 import { WebSocketServer } from "ws";
 import {
   authenticateWebSocketUpgrade,
   getWebSocketOptions,
   handleSecurityApi,
   parseWebSocketMessage,
+  requireDb,
+  type WebSocketAuth,
 } from "./api-security";
 import { handleControlPlaneApi } from "./control-plane-api";
 import { readHealth } from "./health";
@@ -33,10 +37,25 @@ const dev = process.env.NODE_ENV !== "production";
 const app = next({ dev, dir: process.cwd(), hostname, port });
 const handle = app.getRequestHandler();
 const wsOptions = getWebSocketOptions();
-const authenticatedUpgrades = new WeakMap<
-  object,
-  ReturnType<typeof authenticateWebSocketUpgrade>
->();
+const authenticatedUpgrades = new WeakMap<object, WebSocketAuth>();
+const sensitiveTelemetryKey =
+  /(^|_)(api[-_]?key|access[-_]?token|refresh[-_]?token|authorization|password|secret|auth[-_]?json)($|_)/i;
+
+function sanitizeTelemetry(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeTelemetry(entry));
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [
+      key,
+      sensitiveTelemetryKey.test(key) ? "[redacted]" : sanitizeTelemetry(entry),
+    ]),
+  );
+}
 
 await app.prepare();
 
@@ -68,12 +87,11 @@ const sockets = new WebSocketServer({
 
 sockets.on("connection", (socket, request) => {
   const connectedAt = new Date().toISOString();
-  const upgradeAuth =
-    authenticatedUpgrades.get(request) ?? authenticateWebSocketUpgrade(request);
+  const upgradeAuth = authenticatedUpgrades.get(request);
   authenticatedUpgrades.delete(request);
 
-  if (!upgradeAuth.ok) {
-    socket.close(upgradeAuth.code, upgradeAuth.reason);
+  if (!upgradeAuth?.ok) {
+    socket.close(1008, "websocket upgrade was not authenticated");
     return;
   }
 
@@ -81,14 +99,25 @@ sockets.on("connection", (socket, request) => {
     JSON.stringify({
       type: "security.connected",
       connectedAt,
-      expiresAt: upgradeAuth.ticket.expiresAt.toISOString(),
-      purpose: upgradeAuth.ticket.purpose,
+      kind: upgradeAuth.kind,
+      ...(upgradeAuth.kind === "owner"
+        ? {
+            expiresAt: upgradeAuth.ticket.expiresAt.toISOString(),
+            purpose: upgradeAuth.ticket.purpose,
+          }
+        : {
+            hostId: upgradeAuth.host.host.id,
+            purpose: "host",
+          }),
     }),
   );
 
-  const expiry = setTimeout(() => {
-    socket.close(4001, "websocket session expired");
-  }, wsOptions.connectionTtlMs);
+  const expiry =
+    upgradeAuth.kind === "owner"
+      ? setTimeout(() => {
+          socket.close(4001, "websocket session expired");
+        }, wsOptions.connectionTtlMs)
+      : undefined;
 
   const heartbeat = setInterval(
     () => {
@@ -105,59 +134,242 @@ sockets.on("connection", (socket, request) => {
   );
 
   socket.on("message", (message) => {
-    try {
-      const parsed = parseWebSocketMessage(parseRawJson(message));
-      if (!parsed.success) {
-        socket.send(
-          JSON.stringify({
-            type: "security.error",
-            code: "validation_error",
-            issues: parsed.error.issues,
-          }),
-        );
-        return;
-      }
-
-      log("info", "websocket message received", {
-        type: parsed.data.type,
-        bytes: rawMessageBytes(message),
-      });
-    } catch {
-      socket.send(
-        JSON.stringify({ type: "security.error", code: "invalid_json" }),
-      );
-    }
+    void handleWebSocketMessage(socket, upgradeAuth, message);
   });
 
   socket.on("close", () => {
-    clearTimeout(expiry);
+    if (expiry) {
+      clearTimeout(expiry);
+    }
     clearInterval(heartbeat);
   });
 });
 
-server.on("upgrade", (request, socket, head) => {
-  const requestUrl = new URL(
-    request.url ?? "/",
-    `http://${request.headers.host ?? "localhost"}`,
-  );
+async function handleWebSocketMessage(
+  socket: WebSocket,
+  auth: WebSocketAuth & { ok: true },
+  message: RawData,
+) {
+  try {
+    const parsed = parseWebSocketMessage(parseRawJson(message));
+    if (!parsed.success) {
+      socket.send(
+        JSON.stringify({
+          type: "security.error",
+          code: "validation_error",
+          issues: parsed.error.issues,
+        }),
+      );
+      return;
+    }
 
-  if (requestUrl.pathname !== "/api/ws") {
-    socket.destroy();
-    return;
-  }
+    if (auth.kind === "host") {
+      await handleHostProtocolMessage(auth.host.host.id, parsed.data);
+    }
 
-  const upgradeAuth = authenticateWebSocketUpgrade(request);
-  if (!upgradeAuth.ok) {
-    socket.write(
-      `HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n${upgradeAuth.reason}`,
+    log("info", "websocket message received", {
+      type: parsed.data.type,
+      kind: auth.kind,
+      bytes: rawMessageBytes(message),
+    });
+  } catch (error) {
+    socket.send(
+      JSON.stringify({ type: "security.error", code: "invalid_json" }),
     );
-    socket.destroy();
+    log("warn", "websocket message rejected", {
+      kind: auth.kind,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function handleHostProtocolMessage(
+  authenticatedHostId: string,
+  message: HostClientMessage,
+) {
+  if (message.type === "client.hello" || message.type === "client.pong") {
     return;
   }
-  authenticatedUpgrades.set(request, upgradeAuth);
+  if ("hostId" in message && message.hostId !== authenticatedHostId) {
+    throw new Error("host message did not match authenticated host");
+  }
 
-  sockets.handleUpgrade(request, socket, head, (websocket) => {
-    sockets.emit("connection", websocket, request);
+  if (message.type === "host.hello") {
+    await persistHostHello(message);
+    return;
+  }
+  if (message.type === "host.heartbeat") {
+    await persistHostHeartbeat(message);
+    return;
+  }
+  if (message.type === "host.reconnect_report") {
+    await appendWorkspaceEvent(requireDb(), {
+      hostId: authenticatedHostId,
+      type: "host.reconnect_reported",
+      payload: {
+        activeRuns: message.activeRuns,
+        localEventCount: message.localEventCount,
+        policy: message.policy,
+      },
+    });
+    return;
+  }
+  if (message.type === "host.command_result") {
+    await appendWorkspaceEvent(requireDb(), {
+      hostId: authenticatedHostId,
+      type: "host.command_result_received",
+      payload: {
+        commandId: message.commandId,
+        command: message.command,
+        status: message.status,
+        exitCode: message.exitCode,
+        outputTruncated: message.outputTruncated,
+        error: message.error,
+      },
+    });
+  }
+}
+
+async function persistHostHello(
+  message: Extract<HostClientMessage, { type: "host.hello" }>,
+) {
+  const database = requireDb();
+  await database.sql`
+    update hosts
+    set status = 'online',
+        protocol_version = ${message.protocolVersion},
+        host_version = ${process.env.RELEASE_VERSION ?? "development"},
+        tool_inventory = ${JSON.stringify(sanitizeTelemetry(message.inventory))}::jsonb,
+        max_concurrent_agents = ${message.capacity.maxConcurrentAgents},
+        last_heartbeat_at = now(),
+        updated_at = now()
+    where id = ${message.hostId} and revoked_at is null
+  `;
+  await insertHeartbeat(
+    message.hostId,
+    "online",
+    message.capacity.activeTaskCount,
+    {
+      ...message.capacity,
+      connections: message.connections,
+    },
+    message.inventory,
+  );
+  await persistConnectionReports(message.hostId, message.connections);
+  await appendWorkspaceEvent(database, {
+    hostId: message.hostId,
+    type: "host.connected",
+    payload: {
+      hostName: message.hostName,
+      protocolVersion: message.protocolVersion,
+      activeRuns: message.activeRuns,
+    },
+  });
+}
+
+async function persistHostHeartbeat(
+  message: Extract<HostClientMessage, { type: "host.heartbeat" }>,
+) {
+  const database = requireDb();
+  await database.sql`
+    update hosts
+    set status = ${message.status},
+        protocol_version = ${message.protocolVersion},
+        max_concurrent_agents = ${message.capacity.maxConcurrentAgents},
+        last_heartbeat_at = now(),
+        updated_at = now()
+    where id = ${message.hostId} and revoked_at is null
+  `;
+  await insertHeartbeat(
+    message.hostId,
+    message.status,
+    message.capacity.activeTaskCount,
+    {
+      ...message.capacity,
+      connections: message.connections,
+      activeRunIds: message.activeRunIds,
+    },
+    message.toolHealth,
+  );
+  await persistConnectionReports(message.hostId, message.connections);
+}
+
+async function insertHeartbeat(
+  hostId: string,
+  status: string,
+  activeRuns: number,
+  capacity: Record<string, unknown>,
+  tools: Record<string, unknown>,
+) {
+  await requireDb().sql`
+    insert into host_heartbeats (host_id, status, active_runs, capacity, tools, heartbeat_at)
+    values (${hostId}, ${status}, ${activeRuns}, ${JSON.stringify(sanitizeTelemetry(capacity))}::jsonb, ${JSON.stringify(sanitizeTelemetry(tools))}::jsonb, now())
+  `;
+}
+
+async function persistConnectionReports(
+  hostId: string,
+  connections: HostConnectionReport[],
+) {
+  const database = requireDb();
+  for (const connection of connections) {
+    await database.sql`
+      update codex_connections
+      set status = ${connection.status},
+          max_concurrent_runs = ${connection.maxConcurrentRuns},
+          last_health_at = now(),
+          updated_at = now()
+      where id = ${connection.codexConnectionId}
+        and host_id = ${hostId}
+        and disabled_at is null
+    `;
+    if (connection.capacitySourceId) {
+      await database.sql`
+        insert into codex_capacity_snapshots (
+          id, capacity_source_id, reporting_connection_id, availability,
+          remaining_percent, reset_at, observation_source, observed_at, payload
+        ) values (
+          ${`capsnap_${crypto.randomUUID()}`}, ${connection.capacitySourceId},
+          ${connection.codexConnectionId}, ${connection.availability},
+          ${connection.remainingPercent ?? null},
+          ${connection.resetAt ? new Date(connection.resetAt) : null},
+          'codex_status', now(), ${JSON.stringify(sanitizeTelemetry(connection.health))}::jsonb
+        )
+      `;
+    }
+  }
+}
+
+server.on("upgrade", (request, socket, head) => {
+  void (async () => {
+    const requestUrl = new URL(
+      request.url ?? "/",
+      `http://${request.headers.host ?? "localhost"}`,
+    );
+
+    if (requestUrl.pathname !== "/api/ws") {
+      socket.destroy();
+      return;
+    }
+
+    const upgradeAuth = await authenticateWebSocketUpgrade(request);
+    if (!upgradeAuth.ok) {
+      socket.write(
+        `HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n${upgradeAuth.reason}`,
+      );
+      socket.destroy();
+      return;
+    }
+    authenticatedUpgrades.set(request, upgradeAuth);
+
+    sockets.handleUpgrade(request, socket, head, (websocket) => {
+      sockets.emit("connection", websocket, request);
+    });
+  })().catch((error: unknown) => {
+    log("error", "websocket upgrade failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    socket.destroy();
   });
 });
 

@@ -1,3 +1,4 @@
+export * from "./host-protocol";
 export * from "./schemas";
 export * from "./statuses";
 
