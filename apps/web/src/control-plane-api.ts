@@ -1,0 +1,621 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
+import {
+  ControlPlaneRepository,
+  HostEnrollmentRepository,
+  SecurityAuditRepository,
+  TaskStateMachine,
+} from "@maxxy/database";
+import { createSecretToken, hashSecret } from "@maxxy/security";
+import { z } from "zod";
+import {
+  handleApiError,
+  type Identity,
+  readJson,
+  requireDb,
+  requireOwner,
+  sendError,
+  sendJson,
+} from "./api-security";
+
+const capacitySourceKindSchema = z.enum([
+  "chatgpt_account",
+  "api_project",
+  "enterprise_workspace",
+]);
+const authModeSchema = z.enum([
+  "chatgpt",
+  "api_key",
+  "enterprise_access_token",
+]);
+const connectionStatusSchema = z.enum([
+  "signed_out",
+  "authenticating",
+  "ready_chatgpt",
+  "ready_api_key",
+  "ready_enterprise_access_token",
+  "limited",
+  "cooldown",
+  "expired",
+  "disabled",
+  "policy_blocked",
+  "revoked",
+  "error",
+]);
+const routingPolicySchema = z.enum(["balanced", "ordered", "manual"]);
+const approvalDecisionSchema = z.enum([
+  "approve_once",
+  "approve_for_session",
+  "decline",
+  "cancel",
+]);
+
+const hostEnrollmentSchema = z.object({
+  hostName: z.string().min(1).max(120),
+  expiresInSeconds: z
+    .number()
+    .int()
+    .min(60)
+    .max(60 * 60 * 24)
+    .default(60 * 30),
+  maxConcurrentAgents: z.number().int().min(1).max(20).default(1),
+});
+const connectionSetupSchema = z.object({
+  label: z.string().min(1).max(120),
+  authMode: authModeSchema,
+  credentialSlotId: z.string().min(1).max(120),
+  capacitySourceId: z.string().min(1).max(160).optional(),
+  capacitySourceLabel: z.string().min(1).max(120).optional(),
+  capacitySourceKind: capacitySourceKindSchema.default("chatgpt_account"),
+  providerScopeHint: z.string().max(200).optional(),
+  maxConcurrentRuns: z.number().int().min(1).max(20).default(1),
+});
+const poolMemberSchema = z.object({
+  connectionId: z.string().min(1),
+  priority: z.number().int().min(0).max(10_000).default(100),
+  maxActiveRuns: z.number().int().min(1).max(20).default(1),
+  enabled: z.boolean().optional(),
+});
+const createPoolSchema = z.object({
+  workspaceId: z.string().min(1).optional(),
+  name: z.string().min(1).max(120),
+  routingPolicy: routingPolicySchema.default("balanced"),
+  members: z.array(poolMemberSchema).default([]),
+});
+const patchPoolSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  routingPolicy: routingPolicySchema.optional(),
+  members: z.array(poolMemberSchema).optional(),
+});
+const createWorkspaceSchema = z.object({
+  name: z.string().min(1).max(120),
+  repository: z.object({
+    owner: z.string().min(1).max(120),
+    name: z.string().min(1).max(120),
+    remoteUrl: z.string().url(),
+    defaultBranch: z.string().min(1).max(120).default("main"),
+  }),
+  defaultHostId: z.string().min(1).optional(),
+  projectPath: z.string().min(1).max(500),
+  worktreeRoot: z.string().min(1).max(500),
+  baseBranch: z.string().min(1).max(120).default("main"),
+  maximumConcurrentAgents: z.number().int().min(1).max(100).default(1),
+});
+const patchWorkspaceSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  defaultHostId: z.string().min(1).nullable().optional(),
+  projectPath: z.string().min(1).max(500).optional(),
+  worktreeRoot: z.string().min(1).max(500).optional(),
+  baseBranch: z.string().min(1).max(120).optional(),
+  maximumConcurrentAgents: z.number().int().min(1).max(100).optional(),
+  codexPoolId: z.string().min(1).nullable().optional(),
+  codexRoutingPolicy: routingPolicySchema.optional(),
+});
+const createTaskSchema = z.object({
+  workspaceId: z.string().min(1),
+  title: z.string().min(1).max(200),
+  prompt: z.string().min(1).max(40_000),
+  priority: z.number().int().min(0).max(10_000).default(100),
+  idempotencyKey: z.string().min(1).max(200).optional(),
+  preferredCodexPoolId: z.string().min(1).optional(),
+  assignedProfileId: z.string().min(1).optional(),
+  dependencies: z
+    .array(
+      z.object({
+        dependsOnTaskId: z.string().min(1),
+        condition: z.enum(["merged", "completed"]).default("merged"),
+      }),
+    )
+    .default([]),
+  startImmediately: z.boolean().default(false),
+});
+const eventsQuerySchema = z.object({
+  workspaceId: z.string().min(1).optional(),
+  afterSequence: z.coerce.number().int().min(-1).default(-1),
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+});
+const approvalDecisionRequestSchema = z.object({
+  decision: approvalDecisionSchema,
+});
+
+export async function handleControlPlaneApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+) {
+  const url = new URL(
+    request.url ?? "/",
+    `http://${request.headers.host ?? "localhost"}`,
+  );
+  const pathname = url.pathname;
+  const method = request.method ?? "GET";
+
+  if (!isControlPlanePath(pathname)) {
+    return false;
+  }
+
+  try {
+    const auth = await requireOwner(request, response, {
+      csrf: method !== "GET" && method !== "HEAD",
+      scope: scopeFor(method, pathname),
+    });
+    if (!auth) {
+      return true;
+    }
+
+    const repository = new ControlPlaneRepository(requireDb());
+    const stateMachine = new TaskStateMachine(requireDb());
+
+    if (pathname === "/api/me" && method === "GET") {
+      sendJson(response, 200, {
+        user: auth.identity.user,
+        authKind: auth.identity.kind,
+      });
+      return true;
+    }
+
+    if (pathname === "/api/hosts" && method === "GET") {
+      sendJson(response, 200, { hosts: await repository.listHosts() });
+      return true;
+    }
+
+    if (pathname === "/api/hosts/enrollment" && method === "POST") {
+      await createHostEnrollment(request, response, auth.identity);
+      return true;
+    }
+
+    const hostRevokeMatch = pathname.match(/^\/api\/hosts\/([^/]+)\/revoke$/);
+    if (hostRevokeMatch && method === "POST") {
+      const host = await repository.revokeHost(
+        decodeURIComponent(hostRevokeMatch[1] ?? ""),
+        auth.identity.user.id,
+      );
+      if (!host) {
+        sendError(response, 404, "not_found", "Host was not found");
+        return true;
+      }
+      await recordAudit("host.revoked", auth.identity, "host", host.id);
+      sendJson(response, 200, { host });
+      return true;
+    }
+
+    const hostConnectionsMatch = pathname.match(
+      /^\/api\/hosts\/([^/]+)\/codex-connections$/,
+    );
+    if (hostConnectionsMatch && method === "GET") {
+      sendJson(response, 200, {
+        connections: await repository.listHostCodexConnections(
+          decodeURIComponent(hostConnectionsMatch[1] ?? ""),
+        ),
+      });
+      return true;
+    }
+
+    const hostConnectionSetupMatch = pathname.match(
+      /^\/api\/hosts\/([^/]+)\/codex-connections\/setup$/,
+    );
+    if (hostConnectionSetupMatch && method === "POST") {
+      const body = connectionSetupSchema.parse(await readJson(request));
+      const connection = await repository.setupCodexConnection({
+        hostId: decodeURIComponent(hostConnectionSetupMatch[1] ?? ""),
+        label: body.label,
+        authMode: body.authMode,
+        credentialSlotId: body.credentialSlotId,
+        ...(body.capacitySourceId
+          ? { capacitySourceId: body.capacitySourceId }
+          : {}),
+        ...(body.capacitySourceLabel
+          ? { capacitySourceLabel: body.capacitySourceLabel }
+          : {}),
+        capacitySourceKind: body.capacitySourceKind,
+        ...(body.providerScopeHint
+          ? { providerScopeHint: body.providerScopeHint }
+          : {}),
+        maxConcurrentRuns: body.maxConcurrentRuns,
+        actorUserId: auth.identity.user.id,
+      });
+      await recordAudit(
+        "codex.connection_added",
+        auth.identity,
+        "codex_connection",
+        connection.id,
+      );
+      sendJson(response, 201, { connection });
+      return true;
+    }
+
+    const reauthMatch = pathname.match(
+      /^\/api\/codex-connections\/([^/]+)\/reauthenticate$/,
+    );
+    if (reauthMatch && method === "POST") {
+      const connection = await repository.updateCodexConnectionStatus({
+        connectionId: decodeURIComponent(reauthMatch[1] ?? ""),
+        status: "authenticating",
+        action: "codex.connection_reauthentication_requested",
+        actorUserId: auth.identity.user.id,
+      });
+      if (!connection) {
+        sendError(response, 404, "not_found", "Codex connection was not found");
+        return true;
+      }
+      await recordAudit(
+        "codex.connection_reauthentication_requested",
+        auth.identity,
+        "codex_connection",
+        connection.id,
+      );
+      sendJson(response, 200, { connection });
+      return true;
+    }
+
+    const disableMatch = pathname.match(
+      /^\/api\/codex-connections\/([^/]+)\/disable$/,
+    );
+    if (disableMatch && method === "POST") {
+      const body = z
+        .object({ status: connectionStatusSchema.default("disabled") })
+        .parse(await readJson(request).catch(() => ({})));
+      const connection = await repository.updateCodexConnectionStatus({
+        connectionId: decodeURIComponent(disableMatch[1] ?? ""),
+        status: body.status,
+        action: "codex.connection_disabled",
+        actorUserId: auth.identity.user.id,
+      });
+      if (!connection) {
+        sendError(response, 404, "not_found", "Codex connection was not found");
+        return true;
+      }
+      await recordAudit(
+        "codex.connection_disabled",
+        auth.identity,
+        "codex_connection",
+        connection.id,
+      );
+      sendJson(response, 200, { connection });
+      return true;
+    }
+
+    const deleteConnectionMatch = pathname.match(
+      /^\/api\/codex-connections\/([^/]+)$/,
+    );
+    if (deleteConnectionMatch && method === "DELETE") {
+      const connection = await repository.deleteCodexConnection(
+        decodeURIComponent(deleteConnectionMatch[1] ?? ""),
+        auth.identity.user.id,
+      );
+      if (!connection) {
+        sendError(
+          response,
+          404,
+          "not_found",
+          "Codex connection was not found or has an active lease",
+        );
+        return true;
+      }
+      await recordAudit(
+        "codex.connection_removed",
+        auth.identity,
+        "codex_connection",
+        connection.id,
+      );
+      sendJson(response, 200, { ok: true });
+      return true;
+    }
+
+    if (pathname === "/api/codex-capacity-pools" && method === "GET") {
+      sendJson(response, 200, { pools: await repository.listCapacityPools() });
+      return true;
+    }
+
+    if (pathname === "/api/codex-capacity-pools" && method === "POST") {
+      const body = createPoolSchema.parse(await readJson(request));
+      const pool = await repository.createCapacityPool(body);
+      await recordAudit(
+        "codex.capacity_pool_created",
+        auth.identity,
+        "codex_capacity_pool",
+        pool.id,
+      );
+      sendJson(response, 201, { pool });
+      return true;
+    }
+
+    const poolMatch = pathname.match(/^\/api\/codex-capacity-pools\/([^/]+)$/);
+    if (poolMatch && method === "PATCH") {
+      const body = patchPoolSchema.parse(await readJson(request));
+      const pool = await repository.patchCapacityPool({
+        poolId: decodeURIComponent(poolMatch[1] ?? ""),
+        ...body,
+      });
+      if (!pool) {
+        sendError(
+          response,
+          404,
+          "not_found",
+          "Codex capacity pool was not found",
+        );
+        return true;
+      }
+      await recordAudit(
+        "codex.capacity_pool_updated",
+        auth.identity,
+        "codex_capacity_pool",
+        pool.id,
+      );
+      sendJson(response, 200, { pool });
+      return true;
+    }
+
+    if (pathname === "/api/codex-capacity/summary" && method === "GET") {
+      sendJson(response, 200, { capacity: await repository.capacitySummary() });
+      return true;
+    }
+
+    if (pathname === "/api/workspaces" && method === "GET") {
+      sendJson(response, 200, {
+        workspaces: await repository.listWorkspaces(),
+      });
+      return true;
+    }
+
+    if (pathname === "/api/workspaces" && method === "POST") {
+      const body = createWorkspaceSchema.parse(await readJson(request));
+      const workspace = await repository.createWorkspace(body);
+      await recordAudit(
+        "workspace.created",
+        auth.identity,
+        "workspace",
+        workspace.id,
+      );
+      sendJson(response, 201, { workspace });
+      return true;
+    }
+
+    const workspaceMatch = pathname.match(/^\/api\/workspaces\/([^/]+)$/);
+    if (workspaceMatch && method === "GET") {
+      const [workspace] = await repository.getWorkspace(
+        decodeURIComponent(workspaceMatch[1] ?? ""),
+      );
+      if (!workspace) {
+        sendError(response, 404, "not_found", "Workspace was not found");
+        return true;
+      }
+      sendJson(response, 200, { workspace });
+      return true;
+    }
+
+    if (workspaceMatch && method === "PATCH") {
+      const body = patchWorkspaceSchema.parse(await readJson(request));
+      const workspace = await repository.patchWorkspace({
+        workspaceId: decodeURIComponent(workspaceMatch[1] ?? ""),
+        ...body,
+      });
+      if (!workspace) {
+        sendError(response, 404, "not_found", "Workspace was not found");
+        return true;
+      }
+      await recordAudit(
+        "workspace.updated",
+        auth.identity,
+        "workspace",
+        workspace.id,
+      );
+      sendJson(response, 200, { workspace });
+      return true;
+    }
+
+    if (pathname === "/api/tasks" && method === "GET") {
+      sendJson(response, 200, { tasks: await repository.listTasks() });
+      return true;
+    }
+
+    if (pathname === "/api/tasks" && method === "POST") {
+      const body = createTaskSchema.parse(await readJson(request));
+      const task = await repository.createTask(body);
+      await recordAudit("task.created", auth.identity, "task", task.id);
+      if (body.startImmediately) {
+        await stateMachine.start(task.id, auth.identity.user.id);
+        const [startedTask] = await repository.getTask(task.id);
+        sendJson(response, 201, { task: startedTask ?? task });
+        return true;
+      }
+      sendJson(response, 201, { task });
+      return true;
+    }
+
+    const taskMatch = pathname.match(/^\/api\/tasks\/([^/]+)$/);
+    if (taskMatch && method === "GET") {
+      const [task] = await repository.getTask(
+        decodeURIComponent(taskMatch[1] ?? ""),
+      );
+      if (!task) {
+        sendError(response, 404, "not_found", "Task was not found");
+        return true;
+      }
+      sendJson(response, 200, { task });
+      return true;
+    }
+
+    const taskActionMatch = pathname.match(
+      /^\/api\/tasks\/([^/]+)\/(start|cancel|retry)$/,
+    );
+    if (taskActionMatch && method === "POST") {
+      const taskId = decodeURIComponent(taskActionMatch[1] ?? "");
+      const action = taskActionMatch[2];
+      if (action === "start") {
+        await stateMachine.start(taskId, auth.identity.user.id);
+      } else if (action === "cancel") {
+        await stateMachine.cancel(taskId, auth.identity.user.id);
+      } else {
+        await stateMachine.retry(taskId, auth.identity.user.id);
+      }
+      await recordAudit(`task.${action}`, auth.identity, "task", taskId);
+      const [task] = await repository.getTask(taskId);
+      sendJson(response, 200, { task });
+      return true;
+    }
+
+    if (pathname === "/api/events" && method === "GET") {
+      const query = eventsQuerySchema.parse(
+        Object.fromEntries(url.searchParams),
+      );
+      sendJson(response, 200, { events: await repository.listEvents(query) });
+      return true;
+    }
+
+    if (pathname === "/api/approvals" && method === "GET") {
+      sendJson(response, 200, { approvals: await repository.listApprovals() });
+      return true;
+    }
+
+    const approvalMatch = pathname.match(
+      /^\/api\/approvals\/([^/]+)\/decision$/,
+    );
+    if (approvalMatch && method === "POST") {
+      const body = approvalDecisionRequestSchema.parse(await readJson(request));
+      const approval = await repository.decideApproval({
+        approvalId: decodeURIComponent(approvalMatch[1] ?? ""),
+        decision: body.decision,
+        decidedByUserId: auth.identity.user.id,
+      });
+      if (!approval) {
+        sendError(response, 404, "not_found", "Pending approval was not found");
+        return true;
+      }
+      await recordAudit(
+        "approval.decided",
+        auth.identity,
+        "approval",
+        approval.id,
+        { decision: body.decision },
+      );
+      sendJson(response, 200, { approval });
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    try {
+      handleApiError(response, error);
+    } catch (unhandled) {
+      sendError(
+        response,
+        500,
+        "internal_error",
+        unhandled instanceof Error ? unhandled.message : "Request failed",
+      );
+    }
+    return true;
+  }
+}
+
+function isControlPlanePath(pathname: string) {
+  if (pathname === "/api/hosts/exchange-enrollment") {
+    return false;
+  }
+
+  return (
+    pathname === "/api/me" ||
+    pathname === "/api/hosts" ||
+    pathname.startsWith("/api/hosts/") ||
+    pathname === "/api/codex-capacity-pools" ||
+    pathname.startsWith("/api/codex-capacity-pools/") ||
+    pathname === "/api/codex-capacity/summary" ||
+    pathname.startsWith("/api/codex-connections/") ||
+    pathname === "/api/workspaces" ||
+    pathname.startsWith("/api/workspaces/") ||
+    pathname === "/api/tasks" ||
+    pathname.startsWith("/api/tasks/") ||
+    pathname === "/api/events" ||
+    pathname === "/api/approvals" ||
+    pathname.startsWith("/api/approvals/")
+  );
+}
+
+function scopeFor(method: string, pathname: string) {
+  if (method === "GET" || method === "HEAD") {
+    return "owner";
+  }
+  if (pathname.includes("codex")) {
+    return "codex:write";
+  }
+  if (pathname.includes("hosts")) {
+    return "hosts:write";
+  }
+  if (pathname.includes("tasks")) {
+    return "tasks:write";
+  }
+  if (pathname.includes("approvals")) {
+    return "approvals:write";
+  }
+  return "owner";
+}
+
+async function createHostEnrollment(
+  request: IncomingMessage,
+  response: ServerResponse,
+  identity: Identity,
+) {
+  const body = hostEnrollmentSchema.parse(await readJson(request));
+  const enrollmentToken = createSecretToken("mxh_enroll");
+  const expiresAt = new Date(Date.now() + body.expiresInSeconds * 1000);
+  const enrollment = await new HostEnrollmentRepository(
+    requireDb().db,
+  ).createEnrollment({
+    hostName: body.hostName,
+    maxConcurrentAgents: body.maxConcurrentAgents,
+    enrollmentTokenHash: hashSecret(enrollmentToken),
+    expiresAt,
+  });
+
+  await recordAudit(
+    "host.enrollment_token_created",
+    identity,
+    "host",
+    enrollment.host.id,
+    { expiresAt },
+  );
+  sendJson(response, 201, {
+    host: {
+      id: enrollment.host.id,
+      name: enrollment.host.name,
+      status: enrollment.host.status,
+    },
+    enrollmentToken,
+    expiresAt,
+  });
+}
+
+async function recordAudit(
+  action: string,
+  identity: Identity,
+  targetType?: string,
+  targetId?: string,
+  metadata?: Record<string, unknown>,
+) {
+  await new SecurityAuditRepository(requireDb().db).record({
+    action,
+    actorUserId: identity.user.id,
+    ...(targetType ? { targetType } : {}),
+    ...(targetId ? { targetId } : {}),
+    metadata: { authKind: identity.kind, ...(metadata ?? {}) },
+  });
+}

@@ -91,7 +91,7 @@ export const websocketMessageSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-type Identity = {
+export type Identity = {
   kind: "session" | "api_token";
   user: {
     id: string;
@@ -667,7 +667,7 @@ async function handleCreateWebSocketTicket(
   });
 }
 
-async function requireOwner(
+export async function requireOwner(
   request: IncomingMessage,
   response: ServerResponse,
   options: { csrf: boolean; scope?: string },
@@ -886,7 +886,7 @@ function isSecureForwardedRequest(request: IncomingMessage) {
   return proto === "https" || (Array.isArray(proto) && proto.includes("https"));
 }
 
-async function readJson(request: IncomingMessage) {
+export async function readJson(request: IncomingMessage) {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
@@ -917,12 +917,16 @@ async function readJson(request: IncomingMessage) {
   }
 }
 
-function sendJson(response: ServerResponse, status: number, payload: unknown) {
+export function sendJson(
+  response: ServerResponse,
+  status: number,
+  payload: unknown,
+) {
   response.writeHead(status, { "content-type": "application/json" });
   response.end(JSON.stringify(payload));
 }
 
-function sendError(
+export function sendError(
   response: ServerResponse,
   status: number,
   code: string,
@@ -1039,7 +1043,7 @@ function requireDatabase(response: ServerResponse) {
   return database;
 }
 
-function requireDb() {
+export function requireDb() {
   if (!database) {
     throw new Error("DATABASE_URL is required for this API route");
   }
@@ -1053,7 +1057,7 @@ function requireAppSecret() {
   return appSecret;
 }
 
-async function audit(
+export async function audit(
   action: string,
   actorUserId?: string,
   targetType?: string,

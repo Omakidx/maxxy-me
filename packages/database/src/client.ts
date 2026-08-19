@@ -23,4 +23,5 @@ export function createDatabase(databaseUrl: string) {
   };
 }
 
-export type Database = ReturnType<typeof createDatabase>["db"];
+export type DatabaseHandle = ReturnType<typeof createDatabase>;
+export type Database = DatabaseHandle["db"];

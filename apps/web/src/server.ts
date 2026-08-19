@@ -8,6 +8,7 @@ import {
   handleSecurityApi,
   parseWebSocketMessage,
 } from "./api-security";
+import { handleControlPlaneApi } from "./control-plane-api";
 import { readHealth } from "./health";
 import { log } from "./logger";
 
@@ -46,6 +47,10 @@ const server = createServer(async (request, response) => {
       "content-type": "application/json",
     });
     response.end(JSON.stringify(health));
+    return;
+  }
+
+  if (await handleControlPlaneApi(request, response)) {
     return;
   }
 

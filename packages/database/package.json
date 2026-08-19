@@ -7,7 +7,10 @@
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
     "./repositories": "./src/repositories/index.ts",
-    "./security-repositories": "./src/security-repositories.ts"
+    "./security-repositories": "./src/security-repositories.ts",
+    "./control-plane": "./src/control-plane.ts",
+    "./task-state-machine": "./src/task-state-machine.ts",
+    "./scheduler": "./src/scheduler.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json"
