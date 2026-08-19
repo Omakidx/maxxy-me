@@ -47,6 +47,8 @@ type ValidationCommand = {
   command: string;
   args?: string[] | undefined;
   profile?: string | undefined;
+  required?: boolean | undefined;
+  timeoutMs?: number | undefined;
 };
 
 type WorkflowContext = {
@@ -331,19 +333,52 @@ export class Phase7WorkflowService {
       },
     );
 
+    const validationFailures: string[] = [];
     for (const command of validationCommands(context.task.validation_profile)) {
-      const result = await this.requireCommand(hostId, "command.run", {
-        command: command.command,
-        args: command.args ?? [],
-        cwd: context.worktreePath,
-        profile: command.profile ?? "default",
-      });
+      const result = await this.sendValidationCommand(hostId, command, context);
       context.validationResults.push({
         command: [command.command, ...(command.args ?? [])].join(" "),
         status: result.status,
         ...(result.output ? { output: result.output } : {}),
       });
+      if (result.status !== "completed" && command.required !== false) {
+        validationFailures.push(
+          [command.command, ...(command.args ?? [])].join(" "),
+        );
+      }
+      if (
+        result.status !== "completed" &&
+        command.required !== false &&
+        validationFailFast(context.task.validation_profile)
+      ) {
+        break;
+      }
     }
+    if (validationFailures.length > 0) {
+      throw new Error(
+        `Required validation failed: ${validationFailures.join(", ")}`,
+      );
+    }
+  }
+
+  private async sendValidationCommand(
+    hostId: string,
+    command: ValidationCommand,
+    context: WorkflowContext,
+  ) {
+    await appendWorkspaceEvent(this.database, {
+      type: "control.command_sent",
+      hostId,
+      taskId: context.task.id,
+      payload: { command: "command.run", payload: command },
+    });
+    return this.sendCommand(hostId, "command.run", {
+      command: command.command,
+      args: command.args ?? [],
+      cwd: context.worktreePath,
+      profile: command.profile ?? "default",
+      ...(command.timeoutMs ? { timeoutMs: command.timeoutMs } : {}),
+    });
   }
 
   private async requireJson(
@@ -577,14 +612,17 @@ function parseJsonObject(value: string): Record<string, unknown> {
 }
 
 function validationCommands(value: unknown): ValidationCommand[] {
-  if (!value || typeof value !== "object" || !("commands" in value)) {
+  if (!value || typeof value !== "object") {
     return [];
   }
-  const commands = (value as { commands?: unknown }).commands;
-  if (!Array.isArray(commands)) {
-    return [];
-  }
-  return commands
+  const profile = value as { commands?: unknown; steps?: unknown };
+  const rawCommands = Array.isArray(profile.commands)
+    ? profile.commands
+    : Array.isArray(profile.steps)
+      ? profile.steps
+      : [];
+
+  return rawCommands
     .filter((command): command is Record<string, unknown> =>
       Boolean(
         command && typeof command === "object" && !Array.isArray(command),
@@ -600,7 +638,17 @@ function validationCommands(value: unknown): ValidationCommand[] {
         : [],
       profile:
         typeof command.profile === "string" ? command.profile : undefined,
+      required: typeof command.required === "boolean" ? command.required : true,
+      timeoutMs:
+        typeof command.timeoutMs === "number" ? command.timeoutMs : undefined,
     }));
+}
+
+function validationFailFast(value: unknown) {
+  if (!value || typeof value !== "object" || !("failFast" in value)) {
+    return true;
+  }
+  return (value as { failFast?: unknown }).failFast !== false;
 }
 
 function fixtureScenarioPayload(value: unknown) {

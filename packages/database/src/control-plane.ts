@@ -85,6 +85,52 @@ function normalizeOwnershipPattern(pattern: string) {
   return pattern.trim().replace(/^\.\//, "").replace(/\/+$/g, "");
 }
 
+function changedFilesFromPayload(operation: Record<string, unknown>) {
+  const payload = operation.payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return [];
+  }
+  const changedFiles = (payload as { changedFiles?: unknown }).changedFiles;
+  return Array.isArray(changedFiles)
+    ? changedFiles.filter((file): file is string => typeof file === "string")
+    : [];
+}
+
+function outputFromPayload(operation: Record<string, unknown>) {
+  const payload = operation.payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return undefined;
+  }
+  const output = (payload as { output?: unknown }).output;
+  return typeof output === "string" ? output : undefined;
+}
+
+function summaryForTask(task: Record<string, unknown>, changedFiles: string[]) {
+  const status = String(task.status ?? "unknown");
+  const title = String(task.title ?? "Task");
+  return `${title} is ${status} with ${changedFiles.length} changed file${changedFiles.length === 1 ? "" : "s"} recorded.`;
+}
+
+function risksForTask(
+  task: Record<string, unknown>,
+  failedChecks: Record<string, unknown>[],
+  changedFiles: string[],
+) {
+  const risks: string[] = [];
+  if (failedChecks.length > 0) {
+    risks.push(
+      `${failedChecks.length} pull-request check result needs attention.`,
+    );
+  }
+  if (String(task.status) === "failed") {
+    risks.push("The task failed before producing a merge-ready pull request.");
+  }
+  if (changedFiles.length === 0) {
+    risks.push("No changed-file summary has been recorded yet.");
+  }
+  return risks;
+}
+
 export class ControlPlaneRepository {
   constructor(private readonly database: DatabaseHandle) {}
 
@@ -412,6 +458,7 @@ export class ControlPlaneRepository {
     maximumConcurrentAgents?: number | undefined;
     codexPoolId?: string | null | undefined;
     codexRoutingPolicy?: string | undefined;
+    validationProfile?: unknown;
   }) {
     const [workspace] = await this.database.sql`
       update workspaces
@@ -423,6 +470,7 @@ export class ControlPlaneRepository {
           maximum_concurrent_agents = coalesce(${input.maximumConcurrentAgents ?? null}, maximum_concurrent_agents),
           codex_pool_id = coalesce(${input.codexPoolId ?? null}, codex_pool_id),
           codex_routing_policy = coalesce(${input.codexRoutingPolicy ?? null}, codex_routing_policy),
+          validation_profile = coalesce(${input.validationProfile === undefined ? null : JSON.stringify(input.validationProfile)}::jsonb, validation_profile),
           updated_at = now()
       where id = ${input.workspaceId}
       returning *
@@ -648,6 +696,113 @@ export class ControlPlaneRepository {
         `Ownership overlap with active task ${overlap.task_id} on ${overlap.pattern}`,
       );
     }
+  }
+
+  async getTaskReview(taskId: string) {
+    const [task] = await this.database.sql`
+      select t.*, w.name as workspace_name, w.validation_profile,
+        pr.id as pull_request_id, pr.number as pull_request_number,
+        pr.title as pull_request_title, pr.status as pull_request_status,
+        pr.url as pull_request_url, pr.head_branch, pr.base_branch,
+        pr.merged_at
+      from tasks t
+      join workspaces w on w.id = t.workspace_id
+      left join pull_requests pr on pr.id = t.pull_request_id
+      where t.id = ${taskId}
+      limit 1
+    `;
+    if (!task) {
+      return null;
+    }
+
+    const [commands, gitOperations, checks, ownershipClaims, events] =
+      await Promise.all([
+        this.database.sql`
+          select * from commands
+          where task_id = ${taskId}
+          order by created_at asc
+        `,
+        this.database.sql`
+          select * from git_operations
+          where task_id = ${taskId}
+          order by created_at asc
+        `,
+        this.database.sql`
+          select c.*
+          from pull_request_checks c
+          join pull_requests pr on pr.id = c.pull_request_id
+          where pr.task_id = ${taskId}
+          order by c.name asc
+        `,
+        this.database.sql`
+          select * from task_ownership_claims
+          where task_id = ${taskId}
+          order by pattern asc
+        `,
+        this.database.sql`
+          select id, type, sequence::int as sequence, occurred_at, payload
+          from events
+          where task_id = ${taskId}
+          order by occurred_at asc
+          limit 200
+        `,
+      ]);
+
+    const changedFiles = Array.from(
+      new Set(
+        gitOperations.flatMap((operation) =>
+          changedFilesFromPayload(operation),
+        ),
+      ),
+    ).sort();
+    const validationResults = gitOperations
+      .filter((operation) =>
+        ["git.validate", "git.status"].includes(String(operation.operation)),
+      )
+      .map((operation) => ({
+        name: String(operation.operation),
+        status: String(operation.status),
+        output: outputFromPayload(operation),
+      }));
+    const commandResults = commands.map((command) => ({
+      command: command.command,
+      cwd: command.cwd,
+      status: command.status,
+      exitCode: command.exit_code,
+      output: command.output,
+      outputTruncated: command.output_truncated,
+      startedAt: command.started_at,
+      completedAt: command.completed_at,
+    }));
+    const failedChecks = checks.filter(
+      (check) =>
+        String(check.conclusion ?? "").length > 0 &&
+        !["success", "neutral", "skipped"].includes(String(check.conclusion)),
+    );
+
+    return {
+      task,
+      commands: commandResults,
+      gitOperations,
+      checks,
+      ownershipClaims,
+      events,
+      report: {
+        implementationSummary: summaryForTask(task, changedFiles),
+        changedFiles,
+        testResults: validationResults,
+        skippedChecks: checks.filter(
+          (check) => String(check.conclusion) === "skipped",
+        ),
+        knownRisks: risksForTask(task, failedChecks, changedFiles),
+        migrationNotes: changedFiles.some((file) =>
+          file.includes("migrations/"),
+        )
+          ? "Database migration files changed; verify migration and rollback behavior before merge."
+          : "No migration files detected.",
+        pullRequestUrl: task.pull_request_url ?? null,
+      },
+    };
   }
 
   listEvents(input: {

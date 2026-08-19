@@ -92,6 +92,23 @@ export default function Page() {
     startImmediately: true,
   });
   const [managerPlan, setManagerPlan] = useState<ManagerPlan | undefined>();
+  const [selectedTaskId, setSelectedTaskId] = useState("");
+  const [taskReview, setTaskReview] = useState<JsonRecord | undefined>();
+  const [validationProfileText, setValidationProfileText] = useState(
+    JSON.stringify(
+      {
+        failFast: true,
+        commands: [
+          { command: "bun", args: ["run", "lint"], required: true },
+          { command: "bun", args: ["run", "typecheck"], required: true },
+          { command: "bun", args: ["test"], required: true },
+          { command: "bun", args: ["run", "build"], required: true },
+        ],
+      },
+      null,
+      2,
+    ),
+  );
 
   const selectedWorkspaceId =
     taskForm.workspaceId || text(data.workspaces[0]?.id, "");
@@ -266,6 +283,37 @@ export default function Page() {
       });
       setTaskForm((current) => ({ ...current, title: "", prompt: "" }));
       setMessage("Task created");
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function loadTaskReview(taskId: string) {
+    try {
+      setSelectedTaskId(taskId);
+      const result = await api(
+        `/api/tasks/${encodeURIComponent(taskId)}/review`,
+      );
+      setTaskReview(result.review as JsonRecord);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function saveValidationProfile() {
+    try {
+      if (!selectedWorkspaceId) {
+        throw new Error("Create a workspace before saving validation");
+      }
+      await api(
+        `/api/workspaces/${encodeURIComponent(selectedWorkspaceId)}/validation-profile`,
+        {
+          method: "PATCH",
+          body: validationProfileText,
+        },
+      );
+      setMessage("Validation profile saved");
       await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
@@ -491,7 +539,7 @@ export default function Page() {
                     <span>Status</span>
                     <span>Workspace</span>
                     <span>Host</span>
-                    <span>PR</span>
+                    <span>Review</span>
                   </div>
                   {data.tasks.map((task) => (
                     <div className="table-row" key={text(task.id)}>
@@ -501,7 +549,15 @@ export default function Page() {
                       </span>
                       <span>{text(task.workspace_name)}</span>
                       <span>{text(task.assigned_host_id)}</span>
-                      <span>{text(task.pull_request_url)}</span>
+                      <span>
+                        <button
+                          className="link-button"
+                          onClick={() => void loadTaskReview(text(task.id))}
+                          type="button"
+                        >
+                          Review
+                        </button>
+                      </span>
                     </div>
                   ))}
                   {data.tasks.length === 0 ? (
@@ -783,6 +839,80 @@ export default function Page() {
               </Card>
             </section>
 
+            <section className="content-grid lower-grid" id="review">
+              <Card className="task-panel">
+                <div className="section-heading">
+                  <div>
+                    <CardLabel>Review</CardLabel>
+                    <h2>Merge evidence</h2>
+                  </div>
+                  <Badge variant={taskReview ? "success" : "muted"}>
+                    {taskReview ? text(selectedTaskId) : "Select task"}
+                  </Badge>
+                </div>
+                {taskReview ? (
+                  <div className="review-grid">
+                    <ReviewBlock
+                      title="Completion report"
+                      items={reportItems(taskReview.report as JsonRecord)}
+                    />
+                    <ReviewBlock
+                      title="Changed files"
+                      items={stringArray(
+                        (taskReview.report as JsonRecord | undefined)
+                          ?.changedFiles,
+                      )}
+                    />
+                    <ReviewBlock
+                      title="Command output"
+                      items={
+                        (taskReview.commands as JsonRecord[] | undefined)?.map(
+                          (command) =>
+                            `${text(command.command)} · ${text(command.status)}${command.exitCode === null || command.exitCode === undefined ? "" : ` · exit ${command.exitCode}`}`,
+                        ) ?? []
+                      }
+                    />
+                    <ReviewBlock
+                      title="Pull request checks"
+                      items={
+                        (taskReview.checks as JsonRecord[] | undefined)?.map(
+                          (check) =>
+                            `${text(check.name)} · ${text(check.status)} · ${text(check.conclusion)}`,
+                        ) ?? []
+                      }
+                    />
+                  </div>
+                ) : (
+                  <p className="empty">
+                    Choose Review on a task row to load merge evidence.
+                  </p>
+                )}
+              </Card>
+
+              <Card as="aside" className="side-panel">
+                <div className="section-heading">
+                  <div>
+                    <CardLabel>Validation</CardLabel>
+                    <h2>Workspace profile</h2>
+                  </div>
+                </div>
+                <Textarea
+                  label="Validation JSON"
+                  value={validationProfileText}
+                  onChange={(event) =>
+                    setValidationProfileText(event.target.value)
+                  }
+                />
+                <Button
+                  disabled={!selectedWorkspaceId}
+                  onClick={() => void saveValidationProfile()}
+                  variant="primary"
+                >
+                  Save validation
+                </Button>
+              </Card>
+            </section>
+
             <section className="content-grid lower-grid">
               <Card className="task-panel" id="approvals">
                 <div className="section-heading">
@@ -878,5 +1008,42 @@ function Metric({
       <strong>{value}</strong>
       <p>{detail}</p>
     </Card>
+  );
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
+}
+
+function reportItems(report?: JsonRecord) {
+  if (!report) {
+    return [];
+  }
+  return [
+    text(report.implementationSummary),
+    `Migration notes: ${text(report.migrationNotes)}`,
+    ...(stringArray(report.knownRisks).length > 0
+      ? stringArray(report.knownRisks).map((risk) => `Risk: ${risk}`)
+      : ["No known risks recorded."]),
+    text(report.pullRequestUrl, "No pull request URL recorded."),
+  ];
+}
+
+function ReviewBlock({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="review-block">
+      <h3>{title}</h3>
+      {items.length > 0 ? (
+        <ul>
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>No entries recorded.</p>
+      )}
+    </div>
   );
 }

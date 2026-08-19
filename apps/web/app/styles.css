@@ -411,6 +411,47 @@ h2 {
   accent-color: var(--foreground);
 }
 
+.link-button {
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.review-block {
+  border: 1px solid var(--border);
+  padding: 12px;
+}
+
+.review-block h3 {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+}
+
+.review-block ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.review-block li,
+.review-block p {
+  color: var(--muted-foreground);
+  line-height: 1.45;
+}
+
 .plan-panel {
   margin-top: 12px;
   padding: 18px;
@@ -523,6 +564,10 @@ h2 {
   .list-item {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .review-grid {
+    grid-template-columns: 1fr;
   }
 
   .button {

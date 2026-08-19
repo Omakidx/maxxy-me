@@ -115,6 +115,24 @@ const ownershipClaimSchema = z.object({
   pattern: z.string().min(1).max(500),
   mode: z.enum(["read", "write"]).default("write"),
 });
+
+const validationCommandSchema = z.object({
+  command: z.string().min(1).max(200),
+  args: z.array(z.string().max(200)).default([]),
+  profile: z.string().min(1).max(120).default("default"),
+  required: z.boolean().default(true),
+  timeoutMs: z
+    .number()
+    .int()
+    .min(1000)
+    .max(60 * 60 * 1000)
+    .optional(),
+});
+const validationProfileSchema = z.object({
+  failFast: z.boolean().default(true),
+  commands: z.array(validationCommandSchema).max(20).default([]),
+});
+
 const createTaskSchema = z.object({
   workspaceId: z.string().min(1),
   title: z.string().min(1).max(200),
@@ -462,6 +480,29 @@ export async function handleControlPlaneApi(
       return true;
     }
 
+    const workspaceValidationMatch = pathname.match(
+      /^\/api\/workspaces\/([^/]+)\/validation-profile$/,
+    );
+    if (workspaceValidationMatch && method === "PATCH") {
+      const body = validationProfileSchema.parse(await readJson(request));
+      const workspace = await repository.patchWorkspace({
+        workspaceId: decodeURIComponent(workspaceValidationMatch[1] ?? ""),
+        validationProfile: body,
+      });
+      if (!workspace) {
+        sendError(response, 404, "not_found", "Workspace was not found");
+        return true;
+      }
+      await recordAudit(
+        "workspace.validation_profile_updated",
+        auth.identity,
+        "workspace",
+        workspace.id,
+      );
+      sendJson(response, 200, { workspace });
+      return true;
+    }
+
     if (pathname === "/api/agent-profiles" && method === "GET") {
       sendJson(response, 200, {
         profiles: await repository.listAgentProfiles(
@@ -543,6 +584,19 @@ export async function handleControlPlaneApi(
         return true;
       }
       sendJson(response, 200, { task });
+      return true;
+    }
+
+    const taskReviewMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/review$/);
+    if (taskReviewMatch && method === "GET") {
+      const review = await repository.getTaskReview(
+        decodeURIComponent(taskReviewMatch[1] ?? ""),
+      );
+      if (!review) {
+        sendError(response, 404, "not_found", "Task was not found");
+        return true;
+      }
+      sendJson(response, 200, { review });
       return true;
     }
 
