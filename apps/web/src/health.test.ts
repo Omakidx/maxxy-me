@@ -8,7 +8,7 @@ describe("readHealth", () => {
 
     const health = await readHealth();
 
-    expect(health.ok).toBe(true);
+    expect(health.ok).toBe(false);
     expect(health.checks.web).toBe("ok");
     expect(health.checks.database).toBe("not_configured");
 

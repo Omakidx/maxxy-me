@@ -6,6 +6,7 @@ import {
   CircleDot,
   LayoutDashboard,
   ListTodo,
+  LoaderCircle,
   Play,
   Plus,
   Radio,
@@ -19,6 +20,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { SystemReadiness } from "../src/system-readiness";
 import { ThemeToggle } from "./theme-toggle";
 import { Badge, Button, Card, CardLabel, Input, Textarea } from "./ui";
 
@@ -75,6 +77,7 @@ type DashboardData = {
   capacity: JsonRecord[];
   approvals: JsonRecord[];
   events: JsonRecord[];
+  readiness?: SystemReadiness;
 };
 
 const emptyData: DashboardData = {
@@ -141,15 +144,77 @@ function connectionLoginCommand(
 
 function eventSummary(event: JsonRecord) {
   const payload = record(event.payload);
+  const type = text(event.type);
+  if (type === "agent.message_delta") return "Streaming agent response";
+  if (type === "agent.message_completed") return "Agent response completed";
+  if (type === "command.output") return "Streaming command output";
+  if (type === "command.completed") {
+    return `Command finished with exit ${numberValue(payload.exitCode)}`;
+  }
+  if (type.startsWith("file_change.")) {
+    return `${type.endsWith("completed") ? "Updated" : "Editing"} ${text(payload.path, "file")}`;
+  }
   return text(
     payload.message,
     text(
       payload.summary,
-      text(
-        payload.command,
-        text(payload.status, text(event.type).replaceAll(".", " ")),
-      ),
+      text(payload.command, text(payload.status, type.replaceAll(".", " "))),
     ),
+  );
+}
+
+export function agentTranscript(events: JsonRecord[]) {
+  const segments = new Map<string, { content: string }>();
+
+  for (const [index, event] of events.entries()) {
+    const type = text(event.type);
+    const payload = record(event.payload);
+    if (type === "agent.message_delta" || type === "agent.message_completed") {
+      const key = `message:${text(payload.messageId, String(index))}`;
+      const current = segments.get(key) ?? { content: "" };
+      current.content =
+        type === "agent.message_completed"
+          ? text(payload.content, current.content)
+          : `${current.content}${text(payload.delta, "")}`;
+      segments.set(key, current);
+      continue;
+    }
+    if (
+      type === "command.started" ||
+      type === "command.output" ||
+      type === "command.completed"
+    ) {
+      const key = `command:${text(payload.commandId, String(index))}`;
+      const current = segments.get(key) ?? { content: "" };
+      if (type === "command.started") {
+        current.content = `$ ${text(payload.command, "command")}\n`;
+      } else if (type === "command.output") {
+        current.content += text(payload.output, "");
+      } else {
+        current.content += `\n[exit ${numberValue(payload.exitCode)}]`;
+      }
+      segments.set(key, current);
+    }
+  }
+
+  return [...segments.values()]
+    .map((segment) => segment.content.trimEnd())
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(-20_000);
+}
+
+export function isTaskWorking(task: JsonRecord | undefined) {
+  return Boolean(
+    task &&
+      [
+        "claimed",
+        "starting",
+        "running",
+        "validating",
+        "pushing",
+        "opening_pull_request",
+      ].includes(text(task.status)),
   );
 }
 
@@ -230,6 +295,7 @@ export default function DashboardApp({
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [taskReview, setTaskReview] = useState<JsonRecord | undefined>();
   const streamRefreshTimer = useRef<number | undefined>(undefined);
+  const agentOutputRef = useRef<HTMLPreElement | null>(null);
   const [validationProfileText, setValidationProfileText] = useState(
     JSON.stringify(
       {
@@ -275,6 +341,12 @@ export default function DashboardApp({
       )
     : [];
   const latestFocusedEvent = focusedTaskEvents.at(-1);
+  const focusedAgentOutput = agentTranscript(focusedTaskEvents);
+  const focusedTaskWorking = isTaskWorking(focusedTask);
+  const systemReady = data.readiness?.ready === true;
+  const readinessMessage = systemReady
+    ? "All execution services are ready."
+    : (data.readiness?.reasons[0] ?? "Checking execution services.");
   const openPrTasks = data.tasks.filter(
     (task) => text(task.status) === "awaiting_review",
   );
@@ -340,7 +412,7 @@ export default function DashboardApp({
         return;
       }
       const me = await parseJson(meResponse);
-      const [hosts, workspaces, tasks, capacity, approvals, events] =
+      const [hosts, workspaces, tasks, capacity, approvals, events, readiness] =
         await Promise.all([
           api("/api/hosts"),
           api("/api/workspaces"),
@@ -348,6 +420,7 @@ export default function DashboardApp({
           api("/api/codex-capacity/summary"),
           api("/api/approvals"),
           api("/api/events?limit=200"),
+          api("/api/system/readiness"),
         ]);
       const hostRows = (hosts.hosts as JsonRecord[]) ?? [];
       const connectionResponses = await Promise.all(
@@ -369,6 +442,7 @@ export default function DashboardApp({
         capacity: (capacity.capacity as JsonRecord[]) ?? [],
         approvals: (approvals.approvals as JsonRecord[]) ?? [],
         events: (events.events as JsonRecord[]) ?? [],
+        readiness: readiness as unknown as SystemReadiness,
       });
       setState("ready");
       const onlineHost = hostRows.find(
@@ -757,6 +831,13 @@ export default function DashboardApp({
       setFocusedTaskId(text(activeTasks[0].id, ""));
     }
   }, [activeTasks, focusedTaskId]);
+
+  useEffect(() => {
+    const output = agentOutputRef.current;
+    if (output) {
+      output.scrollTop = output.scrollHeight;
+    }
+  }, [focusedAgentOutput]);
 
   useEffect(() => {
     if (!signedIn || !csrfToken) return;
@@ -1342,6 +1423,42 @@ export default function DashboardApp({
                     {streamState}
                   </Badge>
                 </div>
+                <output
+                  className={`system-status-bar ${systemReady ? "ready" : "blocked"}`}
+                >
+                  <div className="system-status-copy">
+                    {data.readiness ? (
+                      <ShieldCheck aria-hidden="true" />
+                    ) : (
+                      <LoaderCircle
+                        aria-hidden="true"
+                        className="working-spinner"
+                      />
+                    )}
+                    <div>
+                      <strong>
+                        {systemReady ? "Execution ready" : "Execution paused"}
+                      </strong>
+                      <span>{readinessMessage}</span>
+                    </div>
+                  </div>
+                  <div className="readiness-checks">
+                    {(["database", "worker", "hosts", "codex"] as const).map(
+                      (check) => (
+                        <Badge
+                          key={check}
+                          variant={
+                            data.readiness?.checks[check] === "ok"
+                              ? "success"
+                              : "muted"
+                          }
+                        >
+                          {check}
+                        </Badge>
+                      ),
+                    )}
+                  </div>
+                </output>
                 <div className="execution-grid">
                   <section className="prompt-composer">
                     <label className="field">
@@ -1398,10 +1515,12 @@ export default function DashboardApp({
                       </label>
                       <Button
                         disabled={
+                          !systemReady ||
                           !selectedWorkspaceId ||
                           !taskForm.title ||
                           !taskForm.prompt
                         }
+                        title={systemReady ? undefined : readinessMessage}
                         onClick={() => void createTask()}
                         variant="primary"
                       >
@@ -1446,9 +1565,20 @@ export default function DashboardApp({
                           </Badge>
                         </div>
                         <div className="current-activity">
-                          <Bot aria-hidden="true" />
+                          {focusedTaskWorking ? (
+                            <LoaderCircle
+                              aria-hidden="true"
+                              className="working-spinner"
+                            />
+                          ) : (
+                            <Bot aria-hidden="true" />
+                          )}
                           <div>
-                            <span>Agent is currently</span>
+                            <span>
+                              {focusedTaskWorking
+                                ? "Agent is currently"
+                                : "Task status"}
+                            </span>
                             <strong>
                               {latestFocusedEvent
                                 ? eventSummary(latestFocusedEvent)
@@ -1461,6 +1591,8 @@ export default function DashboardApp({
                             text(focusedTask.status),
                           ) ? (
                             <Button
+                              disabled={!systemReady}
+                              title={systemReady ? undefined : readinessMessage}
                               onClick={() =>
                                 void runTaskAction(
                                   text(focusedTask.id),
@@ -1476,6 +1608,8 @@ export default function DashboardApp({
                             text(focusedTask.status),
                           ) ? (
                             <Button
+                              disabled={!systemReady}
+                              title={systemReady ? undefined : readinessMessage}
                               onClick={() =>
                                 void runTaskAction(
                                   text(focusedTask.id),
@@ -1502,6 +1636,28 @@ export default function DashboardApp({
                               Cancel
                             </Button>
                           ) : null}
+                        </div>
+                        <div className="streaming-output">
+                          <div className="streaming-output-heading">
+                            <span>Agent output</span>
+                            {focusedTaskWorking ? (
+                              <LoaderCircle
+                                aria-label="Agent working"
+                                className="working-spinner"
+                              />
+                            ) : null}
+                          </div>
+                          <pre
+                            aria-busy={focusedTaskWorking}
+                            aria-live="polite"
+                            ref={agentOutputRef}
+                            role="log"
+                          >
+                            {focusedAgentOutput ||
+                              (focusedTaskWorking
+                                ? "Waiting for the first output chunk..."
+                                : "No streamed agent output for this task.")}
+                          </pre>
                         </div>
                         <div className="activity-feed">
                           {focusedTaskEvents
@@ -1696,7 +1852,8 @@ export default function DashboardApp({
                         Preview plan
                       </Button>
                       <Button
-                        disabled={!managerPlan}
+                        disabled={!managerPlan || !systemReady}
+                        title={systemReady ? undefined : readinessMessage}
                         onClick={() => void approveManagerPlan()}
                         variant="primary"
                       >

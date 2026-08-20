@@ -771,6 +771,66 @@ h2 {
   height: 14px;
 }
 
+.system-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 0;
+}
+
+.system-status-copy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.system-status-copy > svg {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.system-status-copy strong,
+.system-status-copy span {
+  display: block;
+}
+
+.system-status-copy span {
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.system-status-bar.ready .system-status-copy > svg {
+  color: var(--success);
+}
+
+.system-status-bar.blocked .system-status-copy > svg {
+  color: var(--muted-foreground);
+}
+
+.readiness-checks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.working-spinner {
+  animation: working-spin 800ms linear infinite;
+}
+
+@keyframes working-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .execution-grid {
   display: grid;
   grid-template-columns: minmax(320px, 0.8fr) minmax(420px, 1.2fr);
@@ -868,6 +928,46 @@ h2 {
 
 .task-actions {
   margin-top: 10px;
+}
+
+.streaming-output {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+}
+
+.streaming-output-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 34px;
+  padding: 7px 10px;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.streaming-output-heading svg {
+  width: 16px;
+  height: 16px;
+  color: var(--success);
+}
+
+.streaming-output pre {
+  min-height: 120px;
+  max-height: 240px;
+  margin: 0;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  padding: 12px;
+  color: var(--foreground);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .activity-feed {
@@ -1131,6 +1231,15 @@ h2 {
     width: 100%;
   }
 
+  .system-status-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .readiness-checks {
+    justify-content: flex-start;
+  }
+
   .two-col {
     grid-template-columns: 1fr;
   }
@@ -1187,5 +1296,11 @@ h2 {
 
   .activity-feed {
     max-height: 320px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .working-spinner {
+    animation-duration: 1600ms;
   }
 }

@@ -38,30 +38,147 @@ The Docker Compose control plane contains Caddy, web, worker, migrations, and Po
 
 ## Requirements
 
-- Linux or macOS for local development
-- [Bun 1.3.14](https://bun.sh/)
+- A Linux machine for the quickest local smoke test
+- [Bun 1.3.14](https://bun.sh/) on every machine that runs the host agent
 - Docker Engine with the Compose plugin
-- PostgreSQL 17 for tests run outside Compose
-- Git
-- Codex CLI and GitHub CLI on each execution host
+- Git, the official Codex CLI, and GitHub CLI (`gh`) on every execution host
+- A GitHub repository the authenticated host account may clone and push to
 
-## Local Development
-
-Install dependencies:
+You do not need to install PostgreSQL locally when using Docker Compose. Before continuing, verify the tools that the setup will use:
 
 ```bash
-bun install
+bun --version
+docker compose version
+git --version
+codex --version
+gh --version
 ```
 
-Start the production-shaped local stack:
+The Bun version should be `1.3.14`, and `codex --version` must begin with `codex-cli`. If Bun was just installed and the shell cannot find it, start a new shell or add `$HOME/.bun/bin` to `PATH`. The checked-in host launcher also searches that directory automatically.
+
+## Quick Start
+
+The simplest evaluation runs the containerized control plane and the native execution host on the same Linux machine.
+
+### 1. Clone and install
 
 ```bash
-docker compose up --build
+git clone https://github.com/Omakidx/maxxy-me.git
+cd maxxy-me
+bun install --frozen-lockfile
 ```
 
-Open [http://127.0.0.1:8080](http://127.0.0.1:8080), create the owner account, and follow the dashboard's guided setup.
+### 2. Start the control plane
 
-Run the web, worker, or host process directly when developing a specific service:
+```bash
+docker compose up -d --build
+docker compose ps
+curl -fsS http://127.0.0.1:8080/health
+```
+
+Use `sudo docker compose` if your Linux account cannot access Docker directly. Wait until `postgres`, `web`, and `worker` report healthy and `migrate` has exited successfully. Caddy does not accept traffic until both web and worker pass their health checks.
+
+Open [http://127.0.0.1:8080](http://127.0.0.1:8080) and create the single owner account. Public signup is intentionally unavailable.
+
+### 3. Enroll and run the host
+
+In **Setup**, choose local deployment, create an enrollment command, and run that exact command from the repository root before its one-time token expires. It has this shape:
+
+```bash
+./deploy/maxxy-host enroll \
+  --server http://127.0.0.1:8080 \
+  --token <one-time-token>
+./deploy/maxxy-host start
+```
+
+Keep this terminal open. A successful enrollment followed by a connected WebSocket makes the host appear online. In another terminal, verify its toolchain when needed:
+
+```bash
+cd /path/to/maxxy-me
+./deploy/maxxy-host doctor
+./deploy/maxxy-host registry
+```
+
+Do not run `bun run start:host -- enroll` from outside the checkout. The launcher above is the supported command and knows where the host-agent source and Bun binary live.
+
+### 4. Connect Codex
+
+Leave the host agent running. Open **Settings**, select **Add account**, choose the online host and authentication mode, then register the pending connection. Registration alone does not authenticate or connect the account.
+
+Copy the generated `./deploy/maxxy-host codex-login ...` command into a second terminal on that host and complete the official login flow. The account moves into the connected list only after the host verifies the credentials and reports a `ready_*` status. API-key setup reads the key from standard input; never paste a key into the dashboard.
+
+### 5. Authenticate GitHub
+
+Run these commands as the same operating-system account that runs the local host agent:
+
+```bash
+gh auth login
+gh auth status
+git ls-remote https://github.com/OWNER/REPOSITORY.git HEAD
+```
+
+Grant only the repository access needed to read the base branch, push task branches, and create draft pull requests. The agent does not merge pull requests.
+
+### 6. Add a workspace
+
+In **Setup**, add the GitHub owner, repository, HTTPS remote, protected base branch, persistent clone path, and a separate worktree root. Both paths are paths on the execution host, not paths inside a control-plane container.
+
+For a same-machine smoke test, the current checkout can be the persistent clone path. Create a separate worktree parent first:
+
+```bash
+mkdir -p "$HOME/maxxy-worktrees"
+pwd
+```
+
+Use the `pwd` result as the clone path and `$HOME/maxxy-worktrees` as the worktree root.
+
+### 7. Run the first task
+
+Open **Agent console**. Confirm the database, worker, hosts, and Codex readiness badges are all healthy, choose the workspace, enter a task title and prompt, then select **Run task**.
+
+The focused task shows agent messages and command output as they arrive. Its activity icon spins only while the agent is actively starting, running, validating, pushing, or opening a pull request. Successful work ends in a draft pull request for owner review.
+
+## Readiness and Failure Behavior
+
+Execution fails closed. New tasks, retries, and plan approvals are blocked unless the database is reachable, the scheduler heartbeat is fresh, every host required by active or pinned workspaces is online, and a ready Codex lane exists on a fresh host. The scheduler independently rejects stale hosts.
+
+The dashboard and read-only diagnostics remain available during an execution outage so the owner can identify and repair the failed dependency; cancelling active work also remains available. PostgreSQL is never deliberately stopped because a host disconnects, which preserves task history and recovery evidence.
+
+## Daily Commands
+
+```bash
+# Start or update the local control plane
+docker compose up -d --build
+
+# Inspect health and recent logs
+docker compose ps
+docker compose logs --tail=100 web worker postgres caddy
+
+# Run the local execution host in its own terminal
+./deploy/maxxy-host start
+
+# Stop containers without deleting PostgreSQL data
+docker compose down
+```
+
+Do not add `--volumes` to `docker compose down` unless you intentionally want to delete the local database.
+
+## Fast Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| `bun: command not found` | Run through `./deploy/maxxy-host`; verify `$HOME/.bun/bin/bun --version` |
+| Host is offline | Keep `./deploy/maxxy-host start` running; inspect `docker compose logs --tail=100 web caddy` |
+| WebSocket says `Expected 101` | Connect through `http://127.0.0.1:8080`, not the internal web port; rebuild Caddy/web with Compose |
+| Codex stays pending | Run the generated login command on the selected host while that host agent remains online |
+| Execution is paused | Read the readiness reason in **Agent console** and restore every unhealthy badge |
+| GitHub push or PR fails | Run `gh auth status` and `git ls-remote` as the host-agent operating-system user |
+
+For deeper diagnosis, use [Troubleshooting](docs/troubleshooting.md). Never share enrollment tokens, session cookies, Codex credentials, GitHub tokens, or unredacted logs.
+
+## Development
+
+Run an individual service directly only when developing it:
 
 ```bash
 bun run dev:web
@@ -69,28 +186,9 @@ bun run dev:orchestrator
 bun run dev:host
 ```
 
-Direct processes need a PostgreSQL instance and the variables in [.env.example](.env.example). The Compose stack supplies its own internal service configuration.
+Direct processes require a PostgreSQL instance and the variables in [.env.example](.env.example). The Compose stack supplies its own internal service configuration.
 
-## First-Time Setup
-
-The dashboard guides the owner through seven steps:
-
-1. Choose local development or production VPS mode.
-2. Create the only owner account.
-3. Install and configure the GitHub App.
-4. Create a one-time host enrollment command.
-5. Register a Codex connection, run its generated host login command, and wait for a healthy lane.
-6. Import a GitHub repository and its persistent host paths.
-7. Create the first task.
-
-The detailed operator guides are:
-
-- [Host installation](docs/host-installation.md)
-- [GitHub App setup](docs/github-app.md)
-- [VPS deployment](docs/vps-deployment.md)
-- [Backup and restore](docs/vps-backup-and-restore.md)
-- [Recovery](docs/recovery.md)
-- [Troubleshooting](docs/troubleshooting.md)
+The focused operator guides are [Host installation](docs/host-installation.md), [GitHub setup](docs/github-app.md), [VPS deployment](docs/vps-deployment.md), [Backup and restore](docs/vps-backup-and-restore.md), and [Recovery](docs/recovery.md).
 
 ## Quality Gates
 

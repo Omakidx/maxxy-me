@@ -33,7 +33,7 @@ export async function readHealth(): Promise<HealthStatus> {
   }
 
   return {
-    ok: database !== "error",
+    ok: database === "ok",
     service: process.env.APP_NAME ?? "maxxy-me",
     releaseVersion: process.env.RELEASE_VERSION ?? "development",
     checks: {

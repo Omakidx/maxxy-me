@@ -20,6 +20,7 @@ import {
   sendError,
   sendJson,
 } from "./api-security";
+import { readSystemReadiness } from "./system-readiness";
 
 const capacitySourceKindSchema = z.enum([
   "chatgpt_account",
@@ -218,6 +219,10 @@ export async function handleControlPlaneApi(
 
     const repository = new ControlPlaneRepository(requireDb());
     const stateMachine = new TaskStateMachine(requireDb());
+    if (pathname === "/api/system/readiness" && method === "GET") {
+      sendJson(response, 200, await readSystemReadiness(requireDb()));
+      return true;
+    }
 
     if (pathname === "/api/compatibility" && method === "GET") {
       sendJson(response, 200, {
@@ -605,6 +610,9 @@ export async function handleControlPlaneApi(
     }
 
     if (pathname === "/api/manager-plans/approve" && method === "POST") {
+      if (!(await requireExecutionReadiness(response))) {
+        return true;
+      }
       const body = managerPlanApprovalSchema.parse(await readJson(request));
       const result = await repository.approveManagerPlan({
         workspaceId: body.workspaceId,
@@ -630,6 +638,9 @@ export async function handleControlPlaneApi(
     }
 
     if (pathname === "/api/tasks" && method === "POST") {
+      if (!(await requireExecutionReadiness(response))) {
+        return true;
+      }
       const body = createTaskSchema.parse(await readJson(request));
       const task = await repository.createTask(body);
       await recordAudit("task.created", auth.identity, "task", task.id);
@@ -675,6 +686,12 @@ export async function handleControlPlaneApi(
     if (taskActionMatch && method === "POST") {
       const taskId = decodeURIComponent(taskActionMatch[1] ?? "");
       const action = taskActionMatch[2];
+      if (
+        (action === "start" || action === "retry") &&
+        !(await requireExecutionReadiness(response))
+      ) {
+        return true;
+      }
       if (action === "start") {
         await stateMachine.start(taskId, auth.identity.user.id);
       } else if (action === "cancel") {
@@ -872,6 +889,7 @@ function isControlPlanePath(pathname: string) {
 
   return (
     pathname === "/api/compatibility" ||
+    pathname === "/api/system/readiness" ||
     pathname === "/api/me" ||
     pathname === "/api/hosts" ||
     pathname.startsWith("/api/hosts/") ||
@@ -923,6 +941,21 @@ function scopeFor(method: string, pathname: string) {
     return "approvals:write";
   }
   return "owner";
+}
+
+async function requireExecutionReadiness(response: ServerResponse) {
+  const readiness = await readSystemReadiness(requireDb());
+  if (readiness.ready) {
+    return true;
+  }
+  sendError(
+    response,
+    503,
+    "system_not_ready",
+    readiness.reasons.join(" ") || "Execution services are not ready.",
+    readiness,
+  );
+  return false;
 }
 
 async function createHostEnrollment(

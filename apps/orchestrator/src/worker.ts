@@ -15,6 +15,11 @@ const env = z.object({
     .default(5000),
   SCHEDULER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(5000),
   SCHEDULER_ASSIGNMENT_LIMIT: z.coerce.number().int().positive().default(5),
+  SYSTEM_HOST_STALE_AFTER_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(45_000),
   RELEASE_VERSION: z.string().default("development"),
 });
 
@@ -23,6 +28,7 @@ const sql = postgres(config.DATABASE_URL, { max: 1 });
 const database = createDatabase(config.DATABASE_URL);
 const scheduler = new SchedulerService(database, {
   maxAssignmentsPerTick: config.SCHEDULER_ASSIGNMENT_LIMIT,
+  hostStaleAfterMs: config.SYSTEM_HOST_STALE_AFTER_MS,
 });
 const recovery = new RecoveryService(database);
 let schedulerRunning = false;

@@ -298,6 +298,12 @@ sockets.on("connection", (socket, request) => {
       current?.delete(socket);
       if (current?.size === 0) {
         hostSockets.delete(hostId);
+        void markHostOffline(hostId, new Date()).catch((error: unknown) => {
+          log("warn", "failed to mark disconnected host offline", {
+            hostId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
       }
       rejectPendingHostCommandsForHost(hostId, "host websocket closed");
     } else {
@@ -642,6 +648,34 @@ function broadcastOwnerEvent(event: Record<string, unknown>) {
       socket.send(message);
     }
   }
+}
+
+async function markHostOffline(hostId: string, disconnectedAt: Date) {
+  const database = requireDb();
+  const [host] = await database.sql<{ id: string }[]>`
+    update hosts
+    set status = 'offline', updated_at = now()
+    where id = ${hostId} and revoked_at is null and status <> 'offline'
+      and coalesce(last_heartbeat_at, '-infinity'::timestamptz)
+        <= ${disconnectedAt}
+    returning id
+  `;
+  if (!host) {
+    return;
+  }
+  const event = await appendWorkspaceEvent(database, {
+    hostId,
+    type: "host.disconnected",
+    payload: { reason: "websocket_closed" },
+  });
+  broadcastOwnerEvent({
+    id: event.id,
+    type: "host.disconnected",
+    host_id: hostId,
+    sequence: event.sequence,
+    occurred_at: new Date().toISOString(),
+    payload: { reason: "websocket_closed" },
+  });
 }
 
 async function persistHostHello(

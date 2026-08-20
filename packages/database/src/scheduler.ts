@@ -72,6 +72,7 @@ export type SchedulerOptions = {
   taskLeaseSeconds?: number;
   codexLeaseSeconds?: number;
   maxAssignmentsPerTick?: number;
+  hostStaleAfterMs?: number;
 };
 
 export class SchedulerService {
@@ -300,6 +301,7 @@ export class SchedulerService {
             ) latest on true
             where h.status = 'online'
               and h.revoked_at is null
+              and h.last_heartbeat_at >= now() - (${this.options.hostStaleAfterMs ?? 45_000} || ' milliseconds')::interval
               and c.disabled_at is null
               and c.status in ('ready_chatgpt','ready_api_key','ready_enterprise_access_token')
               and (w.codex_pool_id is null or w.codex_pool_id = p.id)
@@ -347,6 +349,7 @@ export class SchedulerService {
         from hosts h
         where h.status = 'online'
           and h.revoked_at is null
+          and h.last_heartbeat_at >= now() - (${this.options.hostStaleAfterMs ?? 45_000} || ' milliseconds')::interval
           and (
             select count(*)::int
             from task_leases tl

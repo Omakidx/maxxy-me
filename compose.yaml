@@ -21,6 +21,8 @@ services:
     depends_on:
       web:
         condition: service_healthy
+      worker:
+        condition: service_healthy
     logging: *default-logging
 
   web:
@@ -41,6 +43,8 @@ services:
       RELEASE_VERSION: ${RELEASE_VERSION:-phase0-compose}
       PROTOCOL_VERSION: ${PROTOCOL_VERSION:-1}
       WS_HEARTBEAT_INTERVAL_MS: ${WS_HEARTBEAT_INTERVAL_MS:-25000}
+      SYSTEM_WORKER_STALE_AFTER_MS: ${SYSTEM_WORKER_STALE_AFTER_MS:-15000}
+      SYSTEM_HOST_STALE_AFTER_MS: ${SYSTEM_HOST_STALE_AFTER_MS:-45000}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-development-webhook-secret}
     expose:
       - "3000"
@@ -69,6 +73,8 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-maxxy}:${POSTGRES_PASSWORD:-maxxy}@postgres:5432/${POSTGRES_DB:-maxxy_me}
       RELEASE_VERSION: ${RELEASE_VERSION:-phase0-compose}
       WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-5000}
+      SYSTEM_WORKER_STALE_AFTER_MS: ${SYSTEM_WORKER_STALE_AFTER_MS:-15000}
+      SYSTEM_HOST_STALE_AFTER_MS: ${SYSTEM_HOST_STALE_AFTER_MS:-45000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     tmpfs:
       - /tmp
@@ -77,6 +83,12 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "bun", "scripts/worker-healthcheck.ts"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
     logging: *default-logging
 
   migrate:
