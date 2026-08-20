@@ -68,6 +68,11 @@ const envSchema = z.object({
   GH_BINARY: z.string().min(1).default("gh"),
   HOST_ALLOWED_COMMAND_PROFILES: z.string().default("default"),
   MAXXY_ALLOWED_COMMANDS: z.string().default(""),
+  MAXXY_DENIED_COMMANDS: z
+    .string()
+    .default(
+      "rm,sudo,su,chmod,chown,mkfs,mount,umount,dd,shutdown,reboot,systemctl,docker,kubectl",
+    ),
   GIT_AUTHOR_NAME: z.string().optional(),
   GIT_AUTHOR_EMAIL: z.string().optional(),
   GIT_COMMITTER_NAME: z.string().optional(),
@@ -102,6 +107,11 @@ export function loadConfig(stored?: StoredHostConfig) {
     ),
     allowedCommands: new Set(
       env.MAXXY_ALLOWED_COMMANDS.split(",")
+        .map((command) => command.trim())
+        .filter(Boolean),
+    ),
+    deniedCommands: new Set(
+      env.MAXXY_DENIED_COMMANDS.split(",")
         .map((command) => command.trim())
         .filter(Boolean),
     ),

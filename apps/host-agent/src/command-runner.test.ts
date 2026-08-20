@@ -65,6 +65,24 @@ describe("HostCommandRunner", () => {
     expect(result.status).toBe("rejected");
   });
 
+  test("rejects denied commands even when explicitly allowlisted", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "maxxy-command-deny-"));
+    process.env.MAXXY_ALLOWED_COMMANDS = "rm";
+    process.env.MAXXY_DENIED_COMMANDS = "rm";
+    const config = configureTempHost(root);
+    const runner = new HostCommandRunner(config);
+
+    const result = await runner.handle({
+      type: "control.command",
+      commandId: "cmd_deny",
+      command: "command.run",
+      payload: { command: "rm", args: ["-rf", "not-run"] },
+    });
+
+    expect(result.status).toBe("rejected");
+    expect(result.error).toContain("denied");
+  });
+
   test("handles Codex connection protocol commands through the local registry", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "maxxy-command-registry-"));
     const runner = new HostCommandRunner(configureTempHost(root));

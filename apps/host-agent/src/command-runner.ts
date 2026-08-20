@@ -353,6 +353,12 @@ export class HostCommandRunner {
 
   private async commandRun(payload: Record<string, unknown>) {
     const input = runCommandSchema.parse(payload);
+    if (this.config.deniedCommands.has(input.command)) {
+      return {
+        status: "rejected" as const,
+        error: `Command is denied by host policy: ${input.command}`,
+      };
+    }
     if (!this.config.allowedCommandProfiles.has(input.profile)) {
       return {
         status: "rejected" as const,
@@ -607,23 +613,29 @@ export class HostCommandRunner {
     timeoutMs = this.config.MAXXY_COMMAND_TIMEOUT_MS,
   ): Promise<CommandResult> {
     return new Promise((resolve) => {
+      const env: NodeJS.ProcessEnv = {
+        PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+        LANG: process.env.LANG ?? "C.UTF-8",
+        NODE_ENV: process.env.NODE_ENV ?? "production",
+      };
+      if (process.env.HOME) env.HOME = process.env.HOME;
+      if (process.env.CI) env.CI = process.env.CI;
+      if (this.config.GIT_AUTHOR_NAME) {
+        env.GIT_AUTHOR_NAME = this.config.GIT_AUTHOR_NAME;
+      }
+      if (this.config.GIT_AUTHOR_EMAIL) {
+        env.GIT_AUTHOR_EMAIL = this.config.GIT_AUTHOR_EMAIL;
+      }
+      if (this.config.GIT_COMMITTER_NAME) {
+        env.GIT_COMMITTER_NAME = this.config.GIT_COMMITTER_NAME;
+      }
+      if (this.config.GIT_COMMITTER_EMAIL) {
+        env.GIT_COMMITTER_EMAIL = this.config.GIT_COMMITTER_EMAIL;
+      }
+
       const child = spawn(command, args, {
         cwd,
-        env: {
-          ...process.env,
-          ...(this.config.GIT_AUTHOR_NAME
-            ? { GIT_AUTHOR_NAME: this.config.GIT_AUTHOR_NAME }
-            : {}),
-          ...(this.config.GIT_AUTHOR_EMAIL
-            ? { GIT_AUTHOR_EMAIL: this.config.GIT_AUTHOR_EMAIL }
-            : {}),
-          ...(this.config.GIT_COMMITTER_NAME
-            ? { GIT_COMMITTER_NAME: this.config.GIT_COMMITTER_NAME }
-            : {}),
-          ...(this.config.GIT_COMMITTER_EMAIL
-            ? { GIT_COMMITTER_EMAIL: this.config.GIT_COMMITTER_EMAIL }
-            : {}),
-        },
+        env,
         shell: false,
       });
       const chunks: Buffer[] = [];

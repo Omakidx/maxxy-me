@@ -8,8 +8,8 @@ This runbook is the Phase 11 operator procedure for building and validating a si
 - Apply security updates and reboot before app installation.
 - Create an administrator user with sudo.
 - Verify console or provider recovery access.
-- Disable password SSH and direct root SSH after key access works.
-- Enable firewall rules for only `22/tcp`, `80/tcp`, and `443/tcp`.
+- Disable password SSH and direct root SSH after key access works. Set `PasswordAuthentication no` and `PermitRootLogin no` in the effective SSH daemon configuration.
+- Enable a default-deny firewall policy, for example `ufw default deny incoming`, then allow only `22/tcp`, `80/tcp`, and `443/tcp`.
 - Install Docker Engine, Docker Compose plugin, Git, GitHub CLI, Bun, Codex, `pg_dump`, `pg_restore`, `age`, `curl`, and project toolchains.
 - Create the `maxxy-host` system user without Docker socket access.
 
@@ -84,7 +84,7 @@ Regularly copy an encrypted backup to isolated storage and test restore into an 
 Record evidence for each item:
 
 - Fresh VPS built from this runbook.
-- Public scan shows only SSH, HTTP, HTTPS.
+- Public scan shows only SSH, HTTP, HTTPS, for example from a separate network with `nmap -Pn -p- <host>`.
 - PostgreSQL and Codex App Server are not publicly reachable.
 - Container replacement preserves PostgreSQL, Caddy, and dashboard state.
 - Full VPS reboot restores Caddy, web, worker, PostgreSQL, and host agent.

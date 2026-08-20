@@ -25,6 +25,7 @@
     "owner:recovery-token": "bun scripts/create-owner-recovery-token.ts",
     "release": "bun scripts/release.ts",
     "phase0:check": "bun scripts/phase0-check.ts",
+    "security:check": "bun scripts/security-check.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
