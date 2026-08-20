@@ -1,11 +1,36 @@
 {$MAXXY_SITE_ADDRESS} {
     encode zstd gzip
+    request_body {
+        max_size 25MB
+    }
+
+    log {
+        output stdout
+        format filter {
+            wrap json
+            fields {
+                request>headers>Authorization delete
+                request>headers>Cookie delete
+                request>headers>Set-Cookie delete
+            }
+        }
+    }
 
     header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        -Server
     }
 
-    reverse_proxy web:3000
+    reverse_proxy web:3000 {
+        flush_interval -1
+        transport http {
+            read_timeout 10m
+            write_timeout 10m
+            dial_timeout 10s
+        }
+    }
 }

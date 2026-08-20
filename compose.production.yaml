@@ -5,18 +5,51 @@ services:
       - "443:443"
     environment:
       MAXXY_SITE_ADDRESS: ${MAXXY_SITE_ADDRESS:?set production hostname, for example workspace.example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /var/lib/maxxy-me/caddy-data:/data
+      - /var/lib/maxxy-me/caddy-config:/config
 
   web:
+    image: ${APP_IMAGE_DIGEST:?set immutable image digest}
+    build: null
     environment:
       APP_ENV: production
       APP_URL: ${APP_URL:?set production HTTPS URL}
+      APP_SECRET: ${APP_SECRET:?set APP_SECRET}
       LOG_LEVEL: info
       TRUSTED_PROXY_HOPS: 1
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?set GITHUB_WEBHOOK_SECRET}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
 
   worker:
+    image: ${APP_IMAGE_DIGEST:?set immutable image digest}
+    build: null
     environment:
       APP_ENV: production
       LOG_LEVEL: info
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+
+  migrate:
+    image: ${APP_IMAGE_DIGEST:?set immutable image digest}
+    build: null
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
 
   postgres:
     ports: []
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - /var/lib/maxxy-me/postgres:/var/lib/postgresql/data
+    security_opt:
+      - no-new-privileges:true

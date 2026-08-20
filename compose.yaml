@@ -1,5 +1,11 @@
 name: maxxy-me
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   caddy:
     image: caddy:2.8.4-alpine
@@ -15,6 +21,7 @@ services:
     depends_on:
       web:
         condition: service_healthy
+    logging: *default-logging
 
   web:
     build:
@@ -25,7 +32,8 @@ services:
       APP_ENV: ${APP_ENV:-development}
       APP_NAME: maxxy-me
       APP_URL: ${APP_URL:-http://127.0.0.1:8080}
-      DATABASE_URL: postgres://maxxy:maxxy@postgres:5432/maxxy_me
+      DATABASE_URL: postgres://${POSTGRES_USER:-maxxy}:${POSTGRES_PASSWORD:-maxxy}@postgres:5432/${POSTGRES_DB:-maxxy_me}
+      APP_SECRET: ${APP_SECRET:-development-only-secret}
       PORT: 3000
       BIND_HOST: 0.0.0.0
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -33,8 +41,11 @@ services:
       RELEASE_VERSION: ${RELEASE_VERSION:-phase0-compose}
       PROTOCOL_VERSION: ${PROTOCOL_VERSION:-1}
       WS_HEARTBEAT_INTERVAL_MS: ${WS_HEARTBEAT_INTERVAL_MS:-25000}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-development-webhook-secret}
     expose:
       - "3000"
+    tmpfs:
+      - /tmp
     healthcheck:
       test: ["CMD", "bun", "scripts/healthcheck.ts"]
       interval: 10s
@@ -46,6 +57,7 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    logging: *default-logging
 
   worker:
     build:
@@ -54,14 +66,18 @@ services:
     restart: unless-stopped
     environment:
       APP_ENV: ${APP_ENV:-development}
-      DATABASE_URL: postgres://maxxy:maxxy@postgres:5432/maxxy_me
+      DATABASE_URL: postgres://${POSTGRES_USER:-maxxy}:${POSTGRES_PASSWORD:-maxxy}@postgres:5432/${POSTGRES_DB:-maxxy_me}
       RELEASE_VERSION: ${RELEASE_VERSION:-phase0-compose}
       WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-5000}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    tmpfs:
+      - /tmp
     depends_on:
       postgres:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    logging: *default-logging
 
   migrate:
     build:
@@ -69,26 +85,28 @@ services:
     command: ["bun", "run", "db:migrate"]
     restart: "no"
     environment:
-      DATABASE_URL: postgres://maxxy:maxxy@postgres:5432/maxxy_me
+      DATABASE_URL: postgres://${POSTGRES_USER:-maxxy}:${POSTGRES_PASSWORD:-maxxy}@postgres:5432/${POSTGRES_DB:-maxxy_me}
       RELEASE_VERSION: ${RELEASE_VERSION:-phase0-compose}
     depends_on:
       postgres:
         condition: service_healthy
+    logging: *default-logging
 
   postgres:
     image: postgres:17.5-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: maxxy_me
-      POSTGRES_USER: maxxy
-      POSTGRES_PASSWORD: maxxy
+      POSTGRES_DB: ${POSTGRES_DB:-maxxy_me}
+      POSTGRES_USER: ${POSTGRES_USER:-maxxy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-maxxy}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U maxxy -d maxxy_me"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-maxxy} -d $${POSTGRES_DB:-maxxy_me}"]
       interval: 5s
       timeout: 5s
       retries: 12
+    logging: *default-logging
 
 volumes:
   caddy-config:
