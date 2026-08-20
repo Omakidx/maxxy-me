@@ -5,6 +5,7 @@ import {
   hostToolInventorySchema,
 } from "@maxxy/contracts";
 import {
+  CODEX_LOGIN_WINDOW_SECONDS,
   ControlPlaneRepository,
   HostEnrollmentRepository,
   SecurityAuditRepository,
@@ -23,16 +24,6 @@ import {
 } from "./api-security";
 import { readSystemReadiness } from "./system-readiness";
 
-const capacitySourceKindSchema = z.enum([
-  "chatgpt_account",
-  "api_project",
-  "enterprise_workspace",
-]);
-const authModeSchema = z.enum([
-  "chatgpt",
-  "api_key",
-  "enterprise_access_token",
-]);
 const routingPolicySchema = z.enum(["balanced", "ordered", "manual"]);
 const approvalDecisionSchema = z.enum([
   "approve_once",
@@ -52,14 +43,7 @@ const hostEnrollmentSchema = z.object({
   maxConcurrentAgents: z.number().int().min(1).max(20).default(1),
 });
 const connectionSetupSchema = z.object({
-  label: z.string().min(1).max(120),
-  authMode: authModeSchema,
-  credentialSlotId: z.string().min(1).max(120),
-  capacitySourceId: z.string().min(1).max(160).optional(),
-  capacitySourceLabel: z.string().min(1).max(120).optional(),
-  capacitySourceKind: capacitySourceKindSchema.default("chatgpt_account"),
-  providerScopeHint: z.string().max(200).optional(),
-  maxConcurrentRuns: z.number().int().min(1).max(20).default(1),
+  authMode: z.enum(["chatgpt", "api_key"]),
 });
 const poolMemberSchema = z.object({
   connectionId: z.string().min(1),
@@ -358,20 +342,8 @@ export async function handleControlPlaneApi(
       const body = connectionSetupSchema.parse(await readJson(request));
       const connection = await repository.setupCodexConnection({
         hostId: decodeURIComponent(hostConnectionSetupMatch[1] ?? ""),
-        label: body.label,
         authMode: body.authMode,
-        credentialSlotId: body.credentialSlotId,
-        ...(body.capacitySourceId
-          ? { capacitySourceId: body.capacitySourceId }
-          : {}),
-        ...(body.capacitySourceLabel
-          ? { capacitySourceLabel: body.capacitySourceLabel }
-          : {}),
-        capacitySourceKind: body.capacitySourceKind,
-        ...(body.providerScopeHint
-          ? { providerScopeHint: body.providerScopeHint }
-          : {}),
-        maxConcurrentRuns: body.maxConcurrentRuns,
+        maxConcurrentRuns: body.authMode === "api_key" ? 4 : 1,
         actorUserId: auth.identity.user.id,
       });
       await recordAudit(
@@ -427,7 +399,14 @@ export async function handleControlPlaneApi(
         "codex_connection",
         connection.id,
       );
-      sendJson(response, 200, { connection });
+      sendJson(response, 200, {
+        connection: {
+          ...connection,
+          login_expires_at: new Date(
+            Date.now() + CODEX_LOGIN_WINDOW_SECONDS * 1000,
+          ).toISOString(),
+        },
+      });
       return true;
     }
 

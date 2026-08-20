@@ -1,4 +1,5 @@
 import { loginCodexConnection } from "./codex-login";
+import { parseCodexLoginArgs } from "./codex-login-args";
 import { loadConfig } from "./config";
 import { exchangeEnrollment } from "./enroll";
 import { loginGitHub, logoutGitHub } from "./github-login";
@@ -11,14 +12,6 @@ import { collectToolInventory } from "./tools";
 function argValue(args: string[], name: string) {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : undefined;
-}
-
-function requiredArg(args: string[], name: string) {
-  const value = argValue(args, name);
-  if (!value) {
-    throw new Error(`Missing required argument: ${name}`);
-  }
-  return value;
 }
 
 async function main() {
@@ -55,18 +48,8 @@ async function main() {
   }
 
   if (command === "codex-login") {
-    const authMode = requiredArg(args, "--auth-mode");
-    if (authMode !== "chatgpt" && authMode !== "api_key") {
-      throw new Error("--auth-mode must be chatgpt or api_key");
-    }
-    const capacitySourceId = argValue(args, "--capacity-source-id");
-    const connection = await loginCodexConnection(config, {
-      codexConnectionId: requiredArg(args, "--connection-id"),
-      authMode,
-      credentialSlotId: requiredArg(args, "--credential-slot"),
-      ...(capacitySourceId ? { capacitySourceId } : {}),
-      deviceAuth: args.includes("--device-auth"),
-    });
+    const login = parseCodexLoginArgs(args);
+    const connection = await loginCodexConnection(config, login);
     log("info", "Codex connection authenticated", {
       codexConnectionId: connection.codexConnectionId,
       status: connection.status,
@@ -85,6 +68,31 @@ async function main() {
   if (command === "github-logout") {
     await logoutGitHub(config);
     log("info", "GitHub account disconnected");
+    return;
+  }
+
+  if (command === "registry-prune") {
+    const registry = CodexConnectionRegistry.at(
+      config.dataDir,
+      config.codexAccountsDir,
+    );
+    let removedConnectionIds: string[];
+    if (args.length === 0) {
+      removedConnectionIds = await registry.pruneExpiredPending(0);
+    } else if (
+      args.length === 2 &&
+      args[0] === "--all" &&
+      args[1] === "--confirm"
+    ) {
+      removedConnectionIds = [];
+      for (const connection of await registry.list()) {
+        await registry.remove(connection.codexConnectionId);
+        removedConnectionIds.push(connection.codexConnectionId);
+      }
+    } else {
+      throw new Error("Usage: maxxy-host registry-prune [--all --confirm]");
+    }
+    console.log(JSON.stringify({ removedConnectionIds }, null, 2));
     return;
   }
 

@@ -212,7 +212,8 @@ export class HostAgentRuntime {
     };
   }
 
-  private connectionReports(): Promise<HostConnectionReport[]> {
+  private async connectionReports(): Promise<HostConnectionReport[]> {
+    await this.registry.pruneExpiredPending();
     return this.registry.report();
   }
 }

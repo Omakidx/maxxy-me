@@ -114,6 +114,24 @@ function isReadyConnection(connection: JsonRecord) {
   return text(connection.status).startsWith("ready_");
 }
 
+export function isPendingConnection(connection: JsonRecord) {
+  return ["signed_out", "authenticating", "error"].includes(
+    text(connection.status),
+  );
+}
+
+function pendingTimeLabel(connection: JsonRecord) {
+  const expiresAt = new Date(text(connection.login_expires_at, "")).getTime();
+  if (!Number.isFinite(expiresAt)) return "less than 10 minutes";
+  const remainingSeconds = Math.max(
+    0,
+    Math.ceil((expiresAt - Date.now()) / 1000),
+  );
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 function githubToolStatus(host: JsonRecord | undefined) {
   return record(record(host?.tool_inventory).gh);
 }
@@ -122,7 +140,7 @@ function isGitHubAuthenticated(host: JsonRecord | undefined) {
   return githubToolStatus(host).authenticated === true;
 }
 
-function connectionLoginCommand(
+export function connectionLoginCommand(
   connection: JsonRecord,
   deploymentMode: DeploymentMode,
 ) {
@@ -138,10 +156,10 @@ function connectionLoginCommand(
     shellQuote(text(connection.id)),
     "--auth-mode",
     shellQuote(authMode),
-    "--credential-slot",
-    shellQuote(text(connection.credential_slot_id, "primary")),
     "--capacity-source-id",
     shellQuote(text(connection.capacity_source_id)),
+    "--expires-at",
+    shellQuote(text(connection.login_expires_at)),
     ...(deploymentMode === "vps" && authMode === "chatgpt"
       ? ["--device-auth"]
       : []),
@@ -269,11 +287,12 @@ export default function DashboardApp({
     maxConcurrentAgents: 1,
   });
   const [enrollmentCommand, setEnrollmentCommand] = useState("");
-  const [codexLoginCommand, setCodexLoginCommand] = useState("");
-  const [connectionForm, setConnectionForm] = useState({
+  const [connectionForm, setConnectionForm] = useState<{
+    hostId: string;
+    authMode: "chatgpt" | "api_key";
+  }>({
     hostId: "",
-    label: "Primary Codex connection",
-    credentialSlotId: "primary",
+    authMode: "chatgpt",
   });
   const [authForm, setAuthForm] = useState({
     name: "Owner",
@@ -306,6 +325,7 @@ export default function DashboardApp({
   const [focusedTaskId, setFocusedTaskId] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [taskReview, setTaskReview] = useState<JsonRecord | undefined>();
+  const previousPendingConnectionIds = useRef<Set<string>>(new Set());
   const streamRefreshTimer = useRef<number | undefined>(undefined);
   const agentOutputRef = useRef<HTMLPreElement | null>(null);
   const [validationProfileText, setValidationProfileText] = useState(
@@ -364,12 +384,13 @@ export default function DashboardApp({
   );
   const signedIn = state === "ready";
   const readyCodexConnections = data.codexConnections.filter(isReadyConnection);
-  const connectedCodexConnections = data.codexConnections;
+  const pendingCodexConnections =
+    data.codexConnections.filter(isPendingConnection);
+  const connectedCodexConnections = data.codexConnections.filter(
+    (connection) => !isPendingConnection(connection),
+  );
   const hostsById = new Map(
     data.hosts.map((host) => [text(host.id), host] as const),
-  );
-  const selectedHostConnections = connectedCodexConnections.filter(
-    (connection) => text(connection.host_id) === connectionForm.hostId,
   );
   const githubHosts = data.hosts.filter(isGitHubAuthenticated);
   const githubReady = githubHosts.length > 0;
@@ -581,24 +602,24 @@ export default function DashboardApp({
       if (!connectionForm.hostId) {
         throw new Error("Enroll an online host before adding an account");
       }
-      const result = await api(
+      if (
+        pendingCodexConnections.some(
+          (connection) => text(connection.host_id) === connectionForm.hostId,
+        )
+      ) {
+        throw new Error(
+          "Cancel the current connection attempt before starting another one.",
+        );
+      }
+      await api(
         `/api/hosts/${encodeURIComponent(connectionForm.hostId)}/codex-connections/setup`,
         {
           method: "POST",
-          body: JSON.stringify({
-            label: connectionForm.label,
-            authMode: "chatgpt",
-            credentialSlotId: connectionForm.credentialSlotId,
-            capacitySourceLabel: connectionForm.label,
-            capacitySourceKind: "chatgpt_account",
-            maxConcurrentRuns: 1,
-          }),
+          body: JSON.stringify({ authMode: connectionForm.authMode }),
         },
       );
-      const connection = record(result.connection);
-      setCodexLoginCommand(connectionLoginCommand(connection, deploymentMode));
       setMessage(
-        "Account added as signed out. Run the generated command on the selected host to finish connecting it.",
+        "Waiting for authentication. Run the generated command within 10 minutes.",
       );
       await refresh();
     } catch (error) {
@@ -653,6 +674,23 @@ export default function DashboardApp({
     }
   }
 
+  async function cancelPendingConnection(connection: JsonRecord) {
+    const connectionId = text(connection.id, "");
+    if (!connectionId) return;
+    setConnectionAction(`${connectionId}:cancel`);
+    try {
+      await api(`/api/codex-connections/${encodeURIComponent(connectionId)}`, {
+        method: "DELETE",
+      });
+      setMessage("Codex connection attempt cancelled.");
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setConnectionAction("");
+    }
+  }
+
   async function manageCodexConnection(
     connection: JsonRecord,
     action: "connect" | "disconnect" | "remove",
@@ -672,19 +710,12 @@ export default function DashboardApp({
     setConnectionAction(actionKey);
     try {
       if (action === "connect") {
-        const result = await api(
+        await api(
           `/api/codex-connections/${encodeURIComponent(connectionId)}/reauthenticate`,
           { method: "POST" },
         );
-        const updated = record(result.connection);
-        setCodexLoginCommand(
-          connectionLoginCommand(
-            Object.keys(updated).length > 0 ? updated : connection,
-            deploymentMode,
-          ),
-        );
         setMessage(
-          "Login command generated. Run it on the assigned host to reconnect the account.",
+          "Waiting for authentication. Run the generated command within 10 minutes.",
         );
       } else if (action === "disconnect") {
         const result = await api(
@@ -872,6 +903,31 @@ export default function DashboardApp({
       setDeploymentMode(storedMode);
     }
   }, []);
+
+  useEffect(() => {
+    const currentPendingIds = new Set(
+      pendingCodexConnections.map((connection) => text(connection.id)),
+    );
+    const previousPendingIds = previousPendingConnectionIds.current;
+    const connected = [...previousPendingIds].some((connectionId) =>
+      data.codexConnections.some(
+        (connection) =>
+          text(connection.id) === connectionId && isReadyConnection(connection),
+      ),
+    );
+    const disappeared = [...previousPendingIds].some(
+      (connectionId) =>
+        !data.codexConnections.some(
+          (connection) => text(connection.id) === connectionId,
+        ),
+    );
+    if (connected) {
+      setMessage("Codex account connected.");
+    } else if (disappeared && !connectionAction.endsWith(":cancel")) {
+      setMessage("Codex connection attempt expired.");
+    }
+    previousPendingConnectionIds.current = currentPendingIds;
+  }, [connectionAction, data.codexConnections, pendingCodexConnections]);
 
   useEffect(() => {
     if (!signedIn) return;
@@ -1311,104 +1367,20 @@ export default function DashboardApp({
                     ) : null}
                     {activeOnboardingStep === 4 ? (
                       <>
-                        <h3>Connect and check Codex</h3>
-                        <div className="two-col">
-                          <label className="field">
-                            <span>Execution host</span>
-                            <select
-                              value={connectionForm.hostId}
-                              onChange={(event) =>
-                                setConnectionForm({
-                                  ...connectionForm,
-                                  hostId: event.target.value,
-                                })
-                              }
-                            >
-                              <option value="">Select host</option>
-                              {data.hosts.map((host) => (
-                                <option
-                                  disabled={text(host.status) !== "online"}
-                                  key={text(host.id)}
-                                  value={text(host.id)}
-                                >
-                                  {text(host.name)} ({text(host.status)})
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <div className="field">
-                            <span>Authentication</span>
-                            <div className="readonly-value">
-                              ChatGPT account
-                            </div>
-                          </div>
-                        </div>
-                        <div className="two-col">
-                          <Input
-                            label="Connection label"
-                            value={connectionForm.label}
-                            onChange={(event) =>
-                              setConnectionForm({
-                                ...connectionForm,
-                                label: event.target.value,
-                              })
-                            }
-                          />
-                          <Input
-                            label="Credential slot"
-                            value={connectionForm.credentialSlotId}
-                            onChange={(event) =>
-                              setConnectionForm({
-                                ...connectionForm,
-                                credentialSlotId: event.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                        <Button
-                          disabled={
-                            !connectionForm.hostId ||
-                            Boolean(connectionAction) ||
-                            !connectionForm.label ||
-                            !connectionForm.credentialSlotId
-                          }
-                          onClick={() => void setupCodexConnection()}
-                          variant="primary"
-                        >
-                          {connectionAction === "new:prepare"
-                            ? "Preparing command..."
-                            : "Connect account"}
-                        </Button>
-                        {codexLoginCommand ? (
-                          <div className="login-command">
-                            <span>
-                              Run this on the selected host, then complete
-                              ChatGPT authentication.
-                            </span>
-                            <code className="command-block">
-                              {codexLoginCommand}
-                            </code>
-                          </div>
-                        ) : null}
+                        <h3>Codex account</h3>
                         <div className="connection-statuses">
-                          {selectedHostConnections.map((connection) => (
+                          {readyCodexConnections.map((connection) => (
                             <div key={text(connection.id)}>
                               <strong>{text(connection.label)}</strong>
-                              <Badge
-                                variant={
-                                  text(connection.status).startsWith("ready_")
-                                    ? "success"
-                                    : "muted"
-                                }
-                              >
-                                {text(connection.status)}
-                              </Badge>
+                              <Badge variant="success">connected</Badge>
                             </div>
                           ))}
-                          {selectedHostConnections.length === 0 ? (
-                            <p>No Codex connections registered yet.</p>
-                          ) : null}
                         </div>
+                        <Link className="doc-link" href="/settings">
+                          {readyCodexConnections.length > 0
+                            ? "Manage Codex accounts"
+                            : "Connect Codex account"}
+                        </Link>
                       </>
                     ) : null}
                     {activeOnboardingStep === 5 ? (
@@ -2054,8 +2026,8 @@ export default function DashboardApp({
                     <div className="settings-content">
                       <section className="account-form">
                         <div className="account-subheading">
-                          <h3>Add ChatGPT account</h3>
-                          <span>Codex execution lane</span>
+                          <h3>Add Codex account</h3>
+                          <span>Execution credentials</span>
                         </div>
                         <div className="two-col">
                           <label className="field">
@@ -2083,39 +2055,60 @@ export default function DashboardApp({
                           </label>
                           <div className="field">
                             <span>Authentication</span>
-                            <div className="readonly-value">
-                              ChatGPT account
-                            </div>
+                            <fieldset
+                              aria-label="Codex authentication"
+                              className="segmented-control"
+                            >
+                              <button
+                                aria-pressed={
+                                  connectionForm.authMode === "chatgpt"
+                                }
+                                className={
+                                  connectionForm.authMode === "chatgpt"
+                                    ? "active"
+                                    : undefined
+                                }
+                                onClick={() =>
+                                  setConnectionForm({
+                                    ...connectionForm,
+                                    authMode: "chatgpt",
+                                  })
+                                }
+                                type="button"
+                              >
+                                ChatGPT subscription
+                              </button>
+                              <button
+                                aria-pressed={
+                                  connectionForm.authMode === "api_key"
+                                }
+                                className={
+                                  connectionForm.authMode === "api_key"
+                                    ? "active"
+                                    : undefined
+                                }
+                                onClick={() =>
+                                  setConnectionForm({
+                                    ...connectionForm,
+                                    authMode: "api_key",
+                                  })
+                                }
+                                type="button"
+                              >
+                                API key
+                              </button>
+                            </fieldset>
                           </div>
-                        </div>
-                        <div className="two-col">
-                          <Input
-                            label="Connection label"
-                            value={connectionForm.label}
-                            onChange={(event) =>
-                              setConnectionForm({
-                                ...connectionForm,
-                                label: event.target.value,
-                              })
-                            }
-                          />
-                          <Input
-                            label="Credential slot"
-                            value={connectionForm.credentialSlotId}
-                            onChange={(event) =>
-                              setConnectionForm({
-                                ...connectionForm,
-                                credentialSlotId: event.target.value,
-                              })
-                            }
-                          />
                         </div>
                         <Button
                           disabled={
                             Boolean(connectionAction) ||
                             !connectionForm.hostId ||
-                            !connectionForm.label ||
-                            !connectionForm.credentialSlotId
+                            pendingCodexConnections.some(
+                              (connection) =>
+                                text(connection.host_id) ===
+                                connectionForm.hostId,
+                            )
                           }
                           onClick={() => void setupCodexConnection()}
                           variant="primary"
@@ -2123,9 +2116,65 @@ export default function DashboardApp({
                           <Plus aria-hidden="true" />
                           {connectionAction === "new:prepare"
                             ? "Preparing command..."
-                            : "Add account"}
+                            : connectionForm.authMode === "api_key"
+                              ? "Connect API key"
+                              : "Connect ChatGPT"}
                         </Button>
                       </section>
+
+                      {pendingCodexConnections.length > 0 ? (
+                        <section
+                          aria-live="polite"
+                          className="pending-connections"
+                        >
+                          {pendingCodexConnections.map((connection) => (
+                            <div
+                              className="pending-connection"
+                              key={text(connection.id)}
+                            >
+                              <div className="pending-connection-heading">
+                                <span className="account-icon">
+                                  <LoaderCircle
+                                    aria-hidden="true"
+                                    className="working-spinner"
+                                  />
+                                </span>
+                                <div>
+                                  <strong>Waiting for authentication</strong>
+                                  <span>
+                                    {text(
+                                      hostsById.get(text(connection.host_id))
+                                        ?.name,
+                                      "Execution host",
+                                    )}
+                                    {" · "}
+                                    Expires in {pendingTimeLabel(connection)}
+                                  </span>
+                                </div>
+                                <Badge variant="muted">pending</Badge>
+                              </div>
+                              <code className="command-block">
+                                {connectionLoginCommand(
+                                  connection,
+                                  deploymentMode,
+                                )}
+                              </code>
+                              <Button
+                                disabled={Boolean(connectionAction)}
+                                onClick={() =>
+                                  void cancelPendingConnection(connection)
+                                }
+                              >
+                                <X aria-hidden="true" />
+                                {connectionAction ===
+                                `${text(connection.id)}:cancel`
+                                  ? "Cancelling..."
+                                  : "Cancel"}
+                              </Button>
+                            </div>
+                          ))}
+                        </section>
+                      ) : null}
 
                       <section
                         className="account-list"
@@ -2163,9 +2212,6 @@ export default function DashboardApp({
                                   "_",
                                   " ",
                                 )}
-                              </span>
-                              <span>
-                                Slot {text(connection.credential_slot_id)}
                               </span>
                             </div>
                             <Badge
@@ -2250,17 +2296,6 @@ export default function DashboardApp({
                         ) : null}
                       </section>
                     </div>
-                    {codexLoginCommand ? (
-                      <div className="login-command">
-                        <span>
-                          Run this on the selected execution host. The account
-                          remains signed out until authentication succeeds.
-                        </span>
-                        <code className="command-block">
-                          {codexLoginCommand}
-                        </code>
-                      </div>
-                    ) : null}
 
                     <section className="account-provider-section">
                       <div className="section-heading">

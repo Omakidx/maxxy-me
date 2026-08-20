@@ -68,18 +68,18 @@ sudo -u maxxy-host /usr/local/bin/maxxy-host registry
 
 The Codex inventory version must start with `codex-cli`. A desktop-app launcher named `codex` is not sufficient.
 
-Keep the host agent running, register the connection in **Setup -> Codex**, and run the generated command in a second terminal on that host. For an installed headless host, it has this shape:
+Keep the host agent running, start the connection in **Settings -> Accounts**, and run the generated command in a second terminal on that host before its ten-minute deadline. For an installed headless host, it has this shape:
 
 ```bash
 sudo -u maxxy-host /usr/local/bin/maxxy-host codex-login \
   --connection-id <connection-id> \
   --auth-mode chatgpt \
-  --credential-slot <slot> \
   --capacity-source-id <capacity-source-id> \
+  --expires-at <ISO-timestamp> \
   --device-auth
 ```
 
-The command runs the official Codex login in that lane's isolated `CODEX_HOME`. After authorization succeeds, the running host reports a `ready_chatgpt` status on its next heartbeat. API-key setup reads the key from stdin and never sends it through the dashboard.
+The command derives an isolated `CODEX_HOME` from the connection ID; users do not name or reuse credential slots. After authorization succeeds, the running host reports `ready_chatgpt` or `ready_api_key` on its next heartbeat. API-key setup reads the key from stdin and never sends it through the dashboard. Select **Cancel** in Settings to remove a pending attempt.
 
 Authenticate GitHub as `maxxy-host`. The current task-to-PR path uses host Git and `gh` credentials for push and draft PR creation:
 
@@ -99,7 +99,7 @@ systemctl status maxxy-host.service
 journalctl -u maxxy-host.service -n 100 --no-pager
 ```
 
-The dashboard should show the host online. Register a Codex connection in **Setup -> Codex** and wait for a `ready_*` status before starting work.
+The dashboard should show the host online. Start a Codex connection in **Settings -> Accounts** and wait for a ready status before starting work.
 
 ## Permissions Check
 

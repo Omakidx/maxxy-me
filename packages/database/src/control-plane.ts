@@ -5,6 +5,15 @@ function id(prefix: string) {
   return `${prefix}_${crypto.randomUUID()}`;
 }
 
+export const CODEX_LOGIN_WINDOW_SECONDS = 10 * 60;
+
+type CodexConnectionRow = Record<string, unknown> & {
+  id: string;
+  host_id: string;
+  capacity_source_id: string;
+  created_at: string | Date;
+};
+
 const defaultAgentProfiles = [
   {
     role: "manager",
@@ -168,9 +177,11 @@ export class ControlPlaneRepository {
     return host;
   }
 
-  listHostCodexConnections(hostId: string) {
+  async listHostCodexConnections(hostId: string) {
+    await this.expirePendingCodexConnections(hostId);
     return this.database.sql`
-      select c.*, s.label as capacity_source_label, s.kind as capacity_source_kind
+      select c.*, s.label as capacity_source_label, s.kind as capacity_source_kind,
+        coalesce(c.login_requested_at, c.created_at) + (${CODEX_LOGIN_WINDOW_SECONDS} || ' seconds')::interval as login_expires_at
       from codex_connections c
       join codex_capacity_sources s on s.id = c.capacity_source_id
       where c.host_id = ${hostId}
@@ -180,9 +191,9 @@ export class ControlPlaneRepository {
 
   async setupCodexConnection(input: {
     hostId: string;
-    label: string;
+    label?: string;
     authMode: string;
-    credentialSlotId: string;
+    credentialSlotId?: string;
     capacitySourceId?: string;
     capacitySourceLabel?: string;
     capacitySourceKind?: string;
@@ -190,31 +201,50 @@ export class ControlPlaneRepository {
     maxConcurrentRuns?: number;
     actorUserId?: string;
   }) {
-    const [existing] = await this.database.sql`
-      select *
-      from codex_connections
-      where host_id = ${input.hostId}
-        and credential_slot_id = ${input.credentialSlotId}
-      limit 1
-    `;
-    if (existing) {
-      if (existing.auth_mode !== input.authMode) {
-        throw new Error(
-          `Credential slot "${input.credentialSlotId}" is already registered with a different authentication mode`,
-        );
-      }
-      return existing;
-    }
-
     const sourceId = input.capacitySourceId ?? id("capsrc");
     const connectionId = id("codexconn");
+    const credentialSlotId = connectionId;
+    const label =
+      input.label ??
+      (input.authMode === "api_key" ? "OpenAI API key" : "ChatGPT account");
     const maxConcurrentRuns = input.maxConcurrentRuns ?? 1;
 
     return this.database.sql
       .begin(async (tx) => {
+        await tx`select pg_advisory_xact_lock(hashtext(${input.hostId}))`;
+        const superseded = await tx<{ capacity_source_id: string }[]>`
+          delete from codex_connections
+          where host_id = ${input.hostId}
+            and status in ('signed_out', 'authenticating', 'error')
+            and not exists (
+              select 1 from codex_connection_leases
+              where codex_connection_id = codex_connections.id
+                and status = 'active'
+            )
+          returning capacity_source_id
+        `;
+        const supersededSourceIds = superseded.map(
+          (connection) => connection.capacity_source_id,
+        );
+        if (supersededSourceIds.length > 0) {
+          await tx`
+            delete from codex_capacity_sources
+            where id in ${tx(supersededSourceIds)}
+              and not exists (
+                select 1 from codex_connections
+                where capacity_source_id = codex_capacity_sources.id
+              )
+          `;
+        }
         await tx`
         insert into codex_capacity_sources (id, label, kind, provider_scope_hint, max_concurrent_runs)
-        values (${sourceId}, ${input.capacitySourceLabel ?? input.label}, ${input.capacitySourceKind ?? "chatgpt_account"}, ${input.providerScopeHint ?? null}, ${maxConcurrentRuns})
+        values (
+          ${sourceId},
+          ${input.capacitySourceLabel ?? label},
+          ${input.capacitySourceKind ?? (input.authMode === "api_key" ? "api_project" : "chatgpt_account")},
+          ${input.providerScopeHint ?? null},
+          ${maxConcurrentRuns}
+        )
         on conflict (id) do update
         set label = excluded.label,
             kind = excluded.kind,
@@ -222,9 +252,12 @@ export class ControlPlaneRepository {
             max_concurrent_runs = excluded.max_concurrent_runs,
             updated_at = now()
       `;
-        const [connection] = await tx`
-        insert into codex_connections (id, host_id, capacity_source_id, label, auth_mode, status, credential_slot_id, max_concurrent_runs)
-        values (${connectionId}, ${input.hostId}, ${sourceId}, ${input.label}, ${input.authMode}, 'signed_out', ${input.credentialSlotId}, ${maxConcurrentRuns})
+        const [connection] = await tx<CodexConnectionRow[]>`
+        insert into codex_connections (id, host_id, capacity_source_id, label, auth_mode, status, credential_slot_id, max_concurrent_runs, login_requested_at)
+        values (
+          ${connectionId}, ${input.hostId}, ${sourceId}, ${label},
+          ${input.authMode}, 'signed_out', ${credentialSlotId}, ${maxConcurrentRuns}, now()
+        )
         returning *
       `;
         if (!connection) {
@@ -240,8 +273,42 @@ export class ControlPlaneRepository {
           type: "codex.connection_added",
           payload: { actorUserId: input.actorUserId, authMode: input.authMode },
         });
-        return connection;
+        return {
+          ...connection,
+          login_expires_at: new Date(
+            new Date(connection.created_at).getTime() +
+              CODEX_LOGIN_WINDOW_SECONDS * 1000,
+          ).toISOString(),
+        };
       });
+  }
+
+  private async expirePendingCodexConnections(hostId: string) {
+    const expired = await this.database.sql<{ capacity_source_id: string }[]>`
+      delete from codex_connections
+      where host_id = ${hostId}
+        and status in ('signed_out', 'authenticating', 'error')
+        and coalesce(login_requested_at, created_at) <= now() - (${CODEX_LOGIN_WINDOW_SECONDS} || ' seconds')::interval
+        and not exists (
+          select 1 from codex_connection_leases
+          where codex_connection_id = codex_connections.id
+            and status = 'active'
+        )
+      returning capacity_source_id
+    `;
+    const sourceIds = expired.map(
+      (connection) => connection.capacity_source_id,
+    );
+    if (sourceIds.length > 0) {
+      await this.database.sql`
+        delete from codex_capacity_sources
+        where id in ${this.database.sql(sourceIds)}
+          and not exists (
+            select 1 from codex_connections
+            where capacity_source_id = codex_capacity_sources.id
+          )
+      `;
+    }
   }
 
   async updateCodexConnectionStatus(input: {
@@ -254,6 +321,11 @@ export class ControlPlaneRepository {
       update codex_connections
       set status = ${input.status},
           disabled_at = case when ${input.status} = 'disabled' then now() else null end,
+          login_requested_at = case
+            when ${input.status} = 'authenticating' then now()
+            when ${input.status} in ('ready_chatgpt','ready_api_key','ready_enterprise_access_token') then null
+            else login_requested_at
+          end,
           updated_at = now()
       where id = ${input.connectionId}
       returning *
@@ -296,6 +368,14 @@ export class ControlPlaneRepository {
     if (!connection) {
       return null;
     }
+    await this.database.sql`
+      delete from codex_capacity_sources
+      where id = ${connection.capacity_source_id}
+        and not exists (
+          select 1 from codex_connections
+          where capacity_source_id = ${connection.capacity_source_id}
+        )
+    `;
     await appendWorkspaceEvent(this.database, {
       hostId: connection.host_id,
       capacitySourceId: connection.capacity_source_id,

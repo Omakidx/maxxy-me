@@ -22,6 +22,8 @@ const blockedRuntimeStatuses = [
   "error",
 ] as const;
 
+const pendingAttemptLifetimeMs = 10 * 60 * 1000;
+
 const connectionSchema = z.object({
   codexConnectionId: z.string().min(1),
   label: z.string().optional(),
@@ -48,6 +50,7 @@ const connectionSchema = z.object({
       "error",
     ])
     .default("signed_out"),
+  createdAt: z.string().datetime({ offset: true }).optional(),
   removedAt: z.string().optional(),
 });
 const registrySchema = z.object({
@@ -128,6 +131,7 @@ export class CodexConnectionRegistry {
       maxConcurrentRuns:
         input.maxConcurrentRuns ?? (input.authMode === "chatgpt" ? 1 : 4),
       status: input.status ?? "signed_out",
+      createdAt: new Date().toISOString(),
       ...(input.label ? { label: input.label } : {}),
       ...(input.capacitySourceId
         ? { capacitySourceId: input.capacitySourceId }
@@ -225,10 +229,13 @@ export class CodexConnectionRegistry {
     const entry = registry.connections.find(
       (candidate) => candidate.codexConnectionId === codexConnectionId,
     );
-    if (!entry || entry.removedAt) {
+    if (!entry) {
       return null;
     }
     await removeCredentialFile(entry.credentialDir);
+    if (entry.removedAt) {
+      return null;
+    }
     entry.status = "disabled";
     entry.removedAt = new Date().toISOString();
     await this.write(registry);
@@ -263,8 +270,42 @@ export class CodexConnectionRegistry {
     }
     await removeCredentialFile(entry.credentialDir);
     entry.status = "authenticating";
+    entry.createdAt = new Date().toISOString();
     await this.write(registry);
     return entry;
+  }
+
+  async pruneExpiredPending(maxAgeMs = pendingAttemptLifetimeMs) {
+    const registry = await this.read();
+    const now = Date.now();
+    const removedConnectionIds: string[] = [];
+
+    for (const entry of registry.connections) {
+      if (
+        entry.removedAt ||
+        !["signed_out", "authenticating", "error"].includes(entry.status)
+      ) {
+        continue;
+      }
+      if (isRunnableStatus(await this.reportedStatus(entry))) {
+        continue;
+      }
+      const createdAt = entry.createdAt
+        ? new Date(entry.createdAt).getTime()
+        : Number.NEGATIVE_INFINITY;
+      if (Number.isFinite(createdAt) && now - createdAt < maxAgeMs) {
+        continue;
+      }
+      await removeCredentialFile(entry.credentialDir);
+      entry.status = "expired";
+      entry.removedAt = new Date(now).toISOString();
+      removedConnectionIds.push(entry.codexConnectionId);
+    }
+
+    if (removedConnectionIds.length > 0) {
+      await this.write(registry);
+    }
+    return removedConnectionIds;
   }
 
   async report(
@@ -294,12 +335,18 @@ export class CodexConnectionRegistry {
   private async reportedStatus(
     entry: CodexRegistryEntry,
   ): Promise<CodexRegistryEntry["status"]> {
-    if (entry.status !== "signed_out") {
+    if (entry.status !== "signed_out" && entry.status !== "authenticating") {
       return entry.status;
     }
     try {
       await stat(path.join(entry.credentialDir, "auth.json"));
-      return entry.authMode === "chatgpt" ? "ready_chatgpt" : entry.status;
+      if (entry.authMode === "chatgpt") {
+        return "ready_chatgpt";
+      }
+      if (entry.authMode === "api_key") {
+        return "ready_api_key";
+      }
+      return "ready_enterprise_access_token";
     } catch {
       return entry.status;
     }

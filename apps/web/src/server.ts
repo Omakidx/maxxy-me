@@ -770,6 +770,11 @@ async function persistConnectionReports(
       set status = ${connection.status},
           max_concurrent_runs = ${connection.maxConcurrentRuns},
           last_health_at = now(),
+          login_requested_at = case
+            when ${connection.status} in ('ready_chatgpt','ready_api_key','ready_enterprise_access_token')
+              then null
+            else login_requested_at
+          end,
           updated_at = now()
       where id = ${connection.codexConnectionId}
         and host_id = ${hostId}

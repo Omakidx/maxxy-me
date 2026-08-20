@@ -103,9 +103,11 @@ Do not run `bun run start:host -- enroll` from outside the checkout. The launche
 
 ### 4. Connect Codex
 
-Leave the host agent running. Open **Settings**, select **Add account**, choose the online host, and register the pending ChatGPT connection. The new account remains visible as `signed_out` until its login succeeds.
+Leave the host agent running. Open **Settings**, select **Add account**, choose the online host, and choose either **ChatGPT subscription** or **API key**. Maxxy creates an isolated credential location automatically; connection labels and slots are not entered manually.
 
-Copy the generated `./deploy/maxxy-host codex-login ...` command into a second terminal on that host and complete the official login flow. The account becomes usable only after the host verifies the credentials and reports a `ready_*` status. Use **Connect** to generate a fresh command for any signed-out account, or **Remove** to delete it.
+Copy the generated `./deploy/maxxy-host codex-login ...` command into a second terminal on that host and complete the official login flow. While authorization is pending, Settings shows a waiting entry instead of adding a signed-out account to the connected list. The command expires after ten minutes. Select **Cancel** to discard it sooner, or start a new attempt after it expires.
+
+The account appears under connected accounts only after the host verifies the credentials and reports `ready_chatgpt` or `ready_api_key`. API-key setup reads the key from standard input so it is not stored in the browser or shell history.
 
 ### 5. Authenticate GitHub
 

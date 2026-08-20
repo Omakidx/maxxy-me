@@ -134,4 +134,27 @@ describe("CodexConnectionRegistry", () => {
       registry.resolveForRuntime("codexconn_disabled"),
     ).rejects.toThrow("not runnable");
   });
+  test("prunes unusable attempts and preserves authenticated API keys", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "maxxy-registry-prune-"));
+    const registry = CodexConnectionRegistry.at(root, path.join(root, "codex"));
+    await registry.register({
+      codexConnectionId: "codexconn_pending",
+      authMode: "chatgpt",
+      status: "signed_out",
+    });
+    const apiKey = await registry.register({
+      codexConnectionId: "codexconn_api_key",
+      authMode: "api_key",
+      status: "signed_out",
+    });
+    await writeFile(path.join(apiKey.credentialDir, "auth.json"), "{}");
+
+    expect(await registry.pruneExpiredPending(0)).toEqual([
+      "codexconn_pending",
+    ]);
+    expect(
+      (await registry.list()).map((entry) => entry.codexConnectionId),
+    ).toEqual(["codexconn_api_key"]);
+    expect((await registry.report())[0]?.status).toBe("ready_api_key");
+  });
 });

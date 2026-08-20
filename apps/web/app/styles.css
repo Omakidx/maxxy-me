@@ -508,6 +508,8 @@ h2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   max-width: 480px;
+  margin: 0;
+  padding: 0;
   border: 1px solid var(--border);
 }
 
@@ -1116,6 +1118,52 @@ h2 {
 }
 
 .account-form > .button {
+  width: fit-content;
+}
+
+.pending-connections {
+  display: grid;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 18px;
+}
+
+.pending-connection {
+  display: grid;
+  gap: 12px;
+  padding: 14px 0;
+}
+
+.pending-connection + .pending-connection {
+  border-top: 1px solid var(--border);
+}
+
+.pending-connection-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pending-connection-heading > div {
+  min-width: 0;
+}
+
+.pending-connection-heading strong,
+.pending-connection-heading span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.pending-connection-heading span {
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+}
+
+.pending-connection-heading .badge {
+  margin-left: auto;
+}
+
+.pending-connection > .button {
   width: fit-content;
 }
 

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { chmod, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { loginCodexConnection } from "./codex-login";
+import { loginCodexConnection, loginTimeRemaining } from "./codex-login";
 import { loadConfig } from "./config";
 import { CodexConnectionRegistry } from "./registry";
 
@@ -23,6 +23,10 @@ async function executable(root: string, source: string) {
 }
 
 describe("loginCodexConnection", () => {
+  function loginDeadline() {
+    return new Date(Date.now() + 60_000).toISOString();
+  }
+
   test("uses an isolated CODEX_HOME and reports a ready ChatGPT lane", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "maxxy-codex-login-"));
     const binary = await executable(
@@ -38,15 +42,15 @@ describe("loginCodexConnection", () => {
     const connection = await loginCodexConnection(config, {
       codexConnectionId: "codexconn_login",
       authMode: "chatgpt",
-      credentialSlotId: "primary",
       capacitySourceId: "capsrc_login",
+      expiresAt: loginDeadline(),
     });
 
     expect(connection.status).toBe("ready_chatgpt");
     expect(connection.capacitySourceId).toBe("capsrc_login");
     expect(
       await readFile(
-        path.join(config.codexAccountsDir, "primary", "auth.json"),
+        path.join(config.codexAccountsDir, "codexconn_login", "auth.json"),
         "utf8",
       ),
     ).toBe("{}");
@@ -61,7 +65,7 @@ describe("loginCodexConnection", () => {
       loginCodexConnection(config, {
         codexConnectionId: "codexconn_failure",
         authMode: "chatgpt",
-        credentialSlotId: "failure",
+        expiresAt: loginDeadline(),
       }),
     ).rejects.toThrow("status 9");
 
@@ -69,6 +73,14 @@ describe("loginCodexConnection", () => {
       config.dataDir,
       config.codexAccountsDir,
     );
-    expect((await registry.get("codexconn_failure"))?.status).toBe("error");
+    expect(await registry.get("codexconn_failure")).toBeUndefined();
+  });
+  test("rejects expired and overlong login commands", () => {
+    expect(() =>
+      loginTimeRemaining(new Date(Date.now() - 1).toISOString()),
+    ).toThrow("expired");
+    expect(() =>
+      loginTimeRemaining(new Date(Date.now() + 11 * 60 * 1000).toISOString()),
+    ).toThrow("over 10 minutes");
   });
 });
