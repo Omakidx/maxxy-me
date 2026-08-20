@@ -209,6 +209,39 @@ h2 {
   letter-spacing: 0;
 }
 
+.route-view {
+  display: none;
+}
+
+.route-dashboard .view-dashboard.metric-grid,
+.route-tasks .view-tasks.content-grid,
+.route-hosts .view-hosts.content-grid,
+.route-setup .view-setup.form-grid,
+.route-settings .view-settings.form-grid,
+.route-approvals .view-approvals.content-grid,
+.route-events .view-events.content-grid {
+  display: grid;
+}
+
+.route-setup .view-setup.onboarding-panel,
+.route-agent .view-agent.execution-studio,
+.route-plans .view-plans.plan-panel {
+  display: block;
+}
+
+.split-route-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.route-tasks .view-hosts-only,
+.route-hosts .view-tasks-only,
+.route-setup .view-settings-only,
+.route-settings .view-setup-only,
+.route-approvals .view-events-only,
+.route-events .view-approvals-only {
+  display: none;
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -872,6 +905,14 @@ h2 {
 .workspace-settings-grid {
   grid-template-columns: minmax(320px, 0.7fr) minmax(520px, 1.3fr);
 }
+.route-tasks .split-route-grid,
+.route-hosts .split-route-grid,
+.route-setup .split-route-grid,
+.route-settings .split-route-grid,
+.route-approvals .split-route-grid,
+.route-events .split-route-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
 
 .account-settings {
   padding: 18px;
@@ -1070,28 +1111,29 @@ h2 {
 
   .icon-button {
     flex: 0 0 38px;
-    .execution-studio,
-    .account-settings {
-      padding: 14px;
-    }
+  }
 
-    .composer-actions,
-    .focused-task-header {
-      align-items: stretch;
-      flex-direction: column;
-    }
+  .execution-studio,
+  .account-settings {
+    padding: 14px;
+  }
 
-    .account-row {
-      grid-template-columns: 1fr;
-    }
+  .composer-actions,
+  .focused-task-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
 
-    .account-actions {
-      justify-content: flex-start;
-      flex-wrap: wrap;
-    }
+  .account-row {
+    grid-template-columns: 1fr;
+  }
 
-    .activity-feed {
-      max-height: 320px;
-    }
+  .account-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .activity-feed {
+    max-height: 320px;
   }
 }

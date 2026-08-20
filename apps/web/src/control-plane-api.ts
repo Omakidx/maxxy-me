@@ -31,20 +31,6 @@ const authModeSchema = z.enum([
   "api_key",
   "enterprise_access_token",
 ]);
-const connectionStatusSchema = z.enum([
-  "signed_out",
-  "authenticating",
-  "ready_chatgpt",
-  "ready_api_key",
-  "ready_enterprise_access_token",
-  "limited",
-  "cooldown",
-  "expired",
-  "disabled",
-  "policy_blocked",
-  "revoked",
-  "error",
-]);
 const routingPolicySchema = z.enum(["balanced", "ordered", "manual"]);
 const approvalDecisionSchema = z.enum([
   "approve_once",
@@ -331,11 +317,24 @@ export async function handleControlPlaneApi(
         sendError(response, 404, "not_found", "Codex connection was not found");
         return true;
       }
-      await runConnectionHostCommand(
-        hooks,
-        existing,
-        "codex.connection.reauthenticate",
-      );
+      try {
+        await runConnectionHostCommand(
+          hooks,
+          existing,
+          "codex.connection.reauthenticate",
+        );
+      } catch (error) {
+        if (isHostUnavailableError(error)) {
+          sendError(
+            response,
+            409,
+            "host_offline",
+            "This account is assigned to an offline host. Start that host, or remove the account and add it to an online host.",
+          );
+          return true;
+        }
+        throw error;
+      }
       const connection = await repository.updateCodexConnectionStatus({
         connectionId,
         status: "authenticating",
@@ -359,23 +358,29 @@ export async function handleControlPlaneApi(
       /^\/api\/codex-connections\/([^/]+)\/disable$/,
     );
     if (disableMatch && method === "POST") {
-      const body = z
-        .object({ status: connectionStatusSchema.default("disabled") })
-        .parse(await readJson(request).catch(() => ({})));
       const connectionId = decodeURIComponent(disableMatch[1] ?? "");
       const existing = await repository.getCodexConnection(connectionId);
       if (!existing) {
         sendError(response, 404, "not_found", "Codex connection was not found");
         return true;
       }
-      await runConnectionHostCommand(
+      if (Number(existing.active_lease_count ?? 0) > 0) {
+        sendError(
+          response,
+          409,
+          "active_lease",
+          "Disconnect is blocked while this account has an active task lease",
+        );
+        return true;
+      }
+      const hostCleanup = await runBestEffortConnectionHostCommand(
         hooks,
         existing,
         "codex.connection.disable",
       );
       const connection = await repository.updateCodexConnectionStatus({
         connectionId,
-        status: body.status,
+        status: "disabled",
         action: "codex.connection_disabled",
         actorUserId: auth.identity.user.id,
       });
@@ -388,7 +393,7 @@ export async function handleControlPlaneApi(
         "codex_connection",
         connection.id,
       );
-      sendJson(response, 200, { connection });
+      sendJson(response, 200, { connection, hostCleanup });
       return true;
     }
 
@@ -402,7 +407,16 @@ export async function handleControlPlaneApi(
         sendError(response, 404, "not_found", "Codex connection was not found");
         return true;
       }
-      await runConnectionHostCommand(
+      if (Number(existing.active_lease_count ?? 0) > 0) {
+        sendError(
+          response,
+          409,
+          "active_lease",
+          "Remove is blocked while this account has an active task lease",
+        );
+        return true;
+      }
+      const hostCleanup = await runBestEffortConnectionHostCommand(
         hooks,
         existing,
         "codex.connection.remove",
@@ -429,7 +443,7 @@ export async function handleControlPlaneApi(
         "codex_connection",
         connection.id,
       );
-      sendJson(response, 200, { ok: true });
+      sendJson(response, 200, { ok: true, hostCleanup });
       return true;
     }
 
@@ -743,7 +757,7 @@ async function runConnectionHostCommand(
   connection: Record<string, unknown>,
   command: HostCommandName,
   extraPayload: Record<string, unknown> = {},
-) {
+): Promise<"completed" | "pending"> {
   if (!hooks.onHostCommand) {
     throw new Error("Host command bridge is unavailable");
   }
@@ -760,12 +774,41 @@ async function runConnectionHostCommand(
       ...extraPayload,
     },
   );
-  if (
-    result.status !== "completed" &&
-    !result.error?.includes("not registered")
-  ) {
-    throw new Error(result.error ?? `Host command failed: ${command}`);
+  if (result.status === "completed") {
+    return "completed";
   }
+  if (result.error?.includes("not registered")) {
+    return "pending";
+  }
+  throw new Error(result.error ?? `Host command failed: ${command}`);
+}
+export async function runBestEffortConnectionHostCommand(
+  hooks: ControlPlaneApiHooks,
+  connection: Record<string, unknown>,
+  command: HostCommandName,
+  extraPayload: Record<string, unknown> = {},
+): Promise<"completed" | "pending"> {
+  try {
+    return await runConnectionHostCommand(
+      hooks,
+      connection,
+      command,
+      extraPayload,
+    );
+  } catch (error) {
+    if (isHostUnavailableError(error)) {
+      return "pending";
+    }
+    throw error;
+  }
+}
+
+function isHostUnavailableError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("No active host websocket") ||
+    message.includes("Host command bridge is unavailable")
+  );
 }
 
 function buildManagerPlan(input: {
