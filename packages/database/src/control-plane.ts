@@ -190,6 +190,22 @@ export class ControlPlaneRepository {
     maxConcurrentRuns?: number;
     actorUserId?: string;
   }) {
+    const [existing] = await this.database.sql`
+      select *
+      from codex_connections
+      where host_id = ${input.hostId}
+        and credential_slot_id = ${input.credentialSlotId}
+      limit 1
+    `;
+    if (existing) {
+      if (existing.auth_mode !== input.authMode) {
+        throw new Error(
+          `Credential slot "${input.credentialSlotId}" is already registered with a different authentication mode`,
+        );
+      }
+      return existing;
+    }
+
     const sourceId = input.capacitySourceId ?? id("capsrc");
     const connectionId = id("codexconn");
     const maxConcurrentRuns = input.maxConcurrentRuns ?? 1;

@@ -79,7 +79,7 @@ The dashboard guides the owner through seven steps:
 2. Create the only owner account.
 3. Install and configure the GitHub App.
 4. Create a one-time host enrollment command.
-5. Register a Codex connection and wait for a healthy lane.
+5. Register a Codex connection, run its generated host login command, and wait for a healthy lane.
 6. Import a GitHub repository and its persistent host paths.
 7. Create the first task.
 

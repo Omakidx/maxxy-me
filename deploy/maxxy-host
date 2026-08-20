@@ -25,5 +25,20 @@ else
   exit 127
 fi
 
+if [[ -z "${CODEX_BINARY:-}" ]]; then
+  codex_candidate=""
+  if command -v codex >/dev/null 2>&1; then
+    codex_candidate="$(command -v codex)"
+  fi
+  bundled_codex="${HOME}/.local/opt/chatgpt/resources/codex"
+  if [[ -n "${codex_candidate}" ]] &&
+    [[ "$("${codex_candidate}" --version 2>/dev/null || true)" == codex-cli* ]]; then
+    export CODEX_BINARY="${codex_candidate}"
+  elif [[ -x "${bundled_codex}" ]] &&
+    [[ "$("${bundled_codex}" --version 2>/dev/null || true)" == codex-cli* ]]; then
+    export CODEX_BINARY="${bundled_codex}"
+  fi
+fi
+
 export PATH="$(dirname -- "${bun_binary}"):${PATH}"
 exec "${bun_binary}" "${app_root}/apps/host-agent/src/agent.ts" "$@"

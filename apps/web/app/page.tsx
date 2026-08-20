@@ -53,6 +53,10 @@ function numberValue(value: unknown, fallback = 0) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+function shellQuote(value: string) {
+  return `'${value.replaceAll("'", "'\"'\"'")}'`;
+}
+
 async function parseJson(response: Response) {
   const body = (await response.json().catch(() => ({}))) as JsonRecord;
   if (!response.ok) {
@@ -77,6 +81,7 @@ export default function Page() {
     maxConcurrentAgents: 1,
   });
   const [enrollmentCommand, setEnrollmentCommand] = useState("");
+  const [codexLoginCommand, setCodexLoginCommand] = useState("");
   const [connectionForm, setConnectionForm] = useState({
     hostId: "",
     label: "Primary Codex connection",
@@ -158,6 +163,9 @@ export default function Page() {
       "ready_enterprise_access_token",
     ].includes(text(connection.status)),
   );
+  const selectedHostConnections = data.codexConnections.filter(
+    (connection) => text(connection.host_id) === connectionForm.hostId,
+  );
   const onboardingSteps = [
     { label: "Deployment", complete: Boolean(deploymentMode) },
     { label: "Owner", complete: signedIn },
@@ -238,9 +246,17 @@ export default function Page() {
         events: (events.events as JsonRecord[]) ?? [],
       });
       setState("ready");
+      const onlineHost = hostRows.find(
+        (host) => text(host.status) === "online",
+      );
       setConnectionForm((current) => ({
         ...current,
-        hostId: current.hostId || text(hostRows[0]?.id, ""),
+        hostId: hostRows.some(
+          (host) =>
+            text(host.id) === current.hostId && text(host.status) === "online",
+        )
+          ? current.hostId
+          : text(onlineHost?.id, ""),
       }));
       setMessage("");
     } catch (error) {
@@ -348,7 +364,7 @@ export default function Page() {
       if (!connectionForm.hostId) {
         throw new Error("Enroll a host before adding a Codex connection");
       }
-      await api(
+      const result = await api(
         `/api/hosts/${encodeURIComponent(connectionForm.hostId)}/codex-connections/setup`,
         {
           method: "POST",
@@ -365,8 +381,36 @@ export default function Page() {
           }),
         },
       );
+      const connection = result.connection as JsonRecord;
+      const authMode = text(connection.auth_mode, connectionForm.authMode);
+      const launcher =
+        deploymentMode === "vps"
+          ? "sudo -u maxxy-host /usr/local/bin/maxxy-host"
+          : "./deploy/maxxy-host";
+      const command = [
+        launcher,
+        "codex-login",
+        "--connection-id",
+        shellQuote(text(connection.id)),
+        "--auth-mode",
+        shellQuote(authMode),
+        "--credential-slot",
+        shellQuote(
+          text(connection.credential_slot_id, connectionForm.credentialSlotId),
+        ),
+        "--capacity-source-id",
+        shellQuote(text(connection.capacity_source_id)),
+        ...(deploymentMode === "vps" && authMode === "chatgpt"
+          ? ["--device-auth"]
+          : []),
+      ].join(" ");
+      setCodexLoginCommand(
+        authMode === "api_key"
+          ? `read -rsp 'OpenAI API key: ' OPENAI_API_KEY; printf '%s' "$OPENAI_API_KEY" | ${command}; unset OPENAI_API_KEY`
+          : command,
+      );
       setMessage(
-        "Codex connection registered. Complete authentication on the selected host, then sync.",
+        "Codex connection prepared. Run the login command on the selected host.",
       );
       await refresh();
     } catch (error) {
@@ -817,8 +861,12 @@ export default function Page() {
                           >
                             <option value="">Select host</option>
                             {data.hosts.map((host) => (
-                              <option key={text(host.id)} value={text(host.id)}>
-                                {text(host.name)}
+                              <option
+                                disabled={text(host.status) !== "online"}
+                                key={text(host.id)}
+                                value={text(host.id)}
+                              >
+                                {text(host.name)} ({text(host.status)})
                               </option>
                             ))}
                           </select>
@@ -872,8 +920,19 @@ export default function Page() {
                       >
                         Register connection
                       </Button>
+                      {codexLoginCommand ? (
+                        <>
+                          <p>
+                            Keep the host agent running and execute this in a
+                            separate terminal on the selected host.
+                          </p>
+                          <code className="command-block">
+                            {codexLoginCommand}
+                          </code>
+                        </>
+                      ) : null}
                       <div className="connection-statuses">
-                        {data.codexConnections.map((connection) => (
+                        {selectedHostConnections.map((connection) => (
                           <div key={text(connection.id)}>
                             <strong>{text(connection.label)}</strong>
                             <Badge
@@ -887,7 +946,7 @@ export default function Page() {
                             </Badge>
                           </div>
                         ))}
-                        {data.codexConnections.length === 0 ? (
+                        {selectedHostConnections.length === 0 ? (
                           <p>No Codex connections registered yet.</p>
                         ) : null}
                       </div>

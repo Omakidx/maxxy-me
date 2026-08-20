@@ -30,12 +30,22 @@ async function detect(binary: string, args: string[]): Promise<HostToolStatus> {
 export async function collectToolInventory(
   config: HostAgentConfig,
 ): Promise<HostToolInventory> {
-  const [bun, codex, git, gh] = await Promise.all([
+  const [bun, detectedCodex, git, gh] = await Promise.all([
     detect("bun", ["--version"]),
     detect(config.CODEX_BINARY, ["--version"]),
     detect(config.GIT_BINARY, ["--version"]),
     detect(config.GH_BINARY, ["--version"]),
   ]);
+  const codex =
+    detectedCodex.available && detectedCodex.version?.startsWith("codex-cli ")
+      ? detectedCodex
+      : {
+          ...detectedCodex,
+          available: false,
+          error: detectedCodex.available
+            ? "Executable is not the official Codex CLI"
+            : detectedCodex.error,
+        };
 
   return {
     os: platform(),

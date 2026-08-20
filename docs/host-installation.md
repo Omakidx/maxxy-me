@@ -66,7 +66,22 @@ sudo -u maxxy-host /usr/local/bin/maxxy-host doctor
 sudo -u maxxy-host /usr/local/bin/maxxy-host registry
 ```
 
-Authenticate GitHub and Codex as `maxxy-host`, using separate Codex credential directories for each lane. The current task-to-PR path uses host Git and `gh` credentials for push and draft PR creation.
+The Codex inventory version must start with `codex-cli`. A desktop-app launcher named `codex` is not sufficient.
+
+Keep the host agent running, register the connection in **Setup -> Codex**, and run the generated command in a second terminal on that host. For an installed headless host, it has this shape:
+
+```bash
+sudo -u maxxy-host /usr/local/bin/maxxy-host codex-login \
+  --connection-id <connection-id> \
+  --auth-mode chatgpt \
+  --credential-slot <slot> \
+  --capacity-source-id <capacity-source-id> \
+  --device-auth
+```
+
+The command runs the official Codex login in that lane's isolated `CODEX_HOME`. After authorization succeeds, the running host reports a `ready_chatgpt` status on its next heartbeat. API-key setup reads the key from stdin and never sends it through the dashboard.
+
+Authenticate GitHub as `maxxy-host`. The current task-to-PR path uses host Git and `gh` credentials for push and draft PR creation.
 
 ## Start
 

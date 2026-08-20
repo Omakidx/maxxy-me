@@ -1,3 +1,4 @@
+import { loginCodexConnection } from "./codex-login";
 import { loadConfig } from "./config";
 import { exchangeEnrollment } from "./enroll";
 import { log } from "./logger";
@@ -9,6 +10,14 @@ import { collectToolInventory } from "./tools";
 function argValue(args: string[], name: string) {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : undefined;
+}
+
+function requiredArg(args: string[], name: string) {
+  const value = argValue(args, name);
+  if (!value) {
+    throw new Error(`Missing required argument: ${name}`);
+  }
+  return value;
 }
 
 async function main() {
@@ -41,6 +50,26 @@ async function main() {
   if (command === "doctor") {
     const inventory = await collectToolInventory(config);
     console.log(JSON.stringify({ inventory }, null, 2));
+    return;
+  }
+
+  if (command === "codex-login") {
+    const authMode = requiredArg(args, "--auth-mode");
+    if (authMode !== "chatgpt" && authMode !== "api_key") {
+      throw new Error("--auth-mode must be chatgpt or api_key");
+    }
+    const capacitySourceId = argValue(args, "--capacity-source-id");
+    const connection = await loginCodexConnection(config, {
+      codexConnectionId: requiredArg(args, "--connection-id"),
+      authMode,
+      credentialSlotId: requiredArg(args, "--credential-slot"),
+      ...(capacitySourceId ? { capacitySourceId } : {}),
+      deviceAuth: args.includes("--device-auth"),
+    });
+    log("info", "Codex connection authenticated", {
+      codexConnectionId: connection.codexConnectionId,
+      status: connection.status,
+    });
     return;
   }
 
