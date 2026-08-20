@@ -123,6 +123,10 @@ export function getWebSocketOptions() {
   };
 }
 
+export function requiresSecureWebSocket(environment = appEnv) {
+  return environment !== "development";
+}
+
 export function parseWebSocketMessage(message: unknown) {
   return websocketMessageSchema.safeParse(message);
 }
@@ -306,7 +310,7 @@ export async function authenticateWebSocketUpgrade(
     return { ok: false, code: 1008, reason: "untrusted origin" };
   }
 
-  if (nodeEnv === "production" && !isSecureForwardedRequest(request)) {
+  if (requiresSecureWebSocket() && !isSecureForwardedRequest(request)) {
     return {
       ok: false,
       code: 1008,
