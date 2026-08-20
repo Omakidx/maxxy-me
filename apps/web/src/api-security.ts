@@ -28,7 +28,7 @@ const wsConnectionTtlMs =
   Number(process.env.WS_CONNECTION_TTL_SECONDS ?? 60 * 15) * 1000;
 const appEnv = process.env.APP_ENV ?? "development";
 const nodeEnv = process.env.NODE_ENV ?? "development";
-const secureCookies = nodeEnv === "production";
+const secureCookies = requiresSecureCookies();
 const appSecret =
   process.env.APP_SECRET ??
   (nodeEnv === "production" ? undefined : "development-only-maxxy-secret");
@@ -127,6 +127,15 @@ export function requiresSecureWebSocket(environment = appEnv) {
   return environment !== "development";
 }
 
+export function requiresSecureCookies(
+  environment = appEnv,
+  appUrl = process.env.APP_URL ?? "http://127.0.0.1:3000",
+) {
+  return (
+    requiresSecureWebSocket(environment) ||
+    new URL(appUrl).protocol === "https:"
+  );
+}
 export function parseWebSocketMessage(message: unknown) {
   return websocketMessageSchema.safeParse(message);
 }

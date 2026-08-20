@@ -138,7 +138,11 @@ function formatTimestamp(value: unknown) {
 async function parseJson(response: Response) {
   const body = (await response.json().catch(() => ({}))) as JsonRecord;
   if (!response.ok) {
-    const message = text(body.message, text(body.error, "Request failed"));
+    const responseError = record(body.error);
+    const message = text(
+      body.message,
+      text(responseError.message, text(body.error, "Request failed")),
+    );
     throw new Error(message);
   }
   return body;
