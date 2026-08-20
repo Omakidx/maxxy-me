@@ -1,5 +1,9 @@
 # maxxy-me
 
+> **Design history:** This original product specification may contain planned or
+> superseded behavior. Start with the current [root README](../../README.md),
+> [architecture](../../ARCHITECTURE.md), and [launch status](../launch-readiness.md).
+
 **maxxy-me** is a personal, web-based control center for coordinating multiple Codex coding agents across persistent local and remote development hosts.
 
 The complete production system runs on one VPS and is accessed through a Cloudflare-managed custom domain. Cloudflare provides authoritative DNS, the proxied public edge, and visitor TLS. The VPS runs Caddy, the dashboard, API, scheduler, PostgreSQL, the host agent, Codex, repositories, worktrees, credentials, and development toolchains.

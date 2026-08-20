@@ -1,5 +1,9 @@
 # Production VPS Runbook
 
+> This Phase 11 evidence document is retained for history. Use
+> [VPS deployment](vps-deployment.md) and [backup and restore](vps-backup-and-restore.md)
+> for the maintained operator procedure.
+
 This runbook is the Phase 11 operator procedure for building and validating a single-VPS maxxy-me deployment. Run commands as an administrator unless noted.
 
 ## 1. Provision and harden OS

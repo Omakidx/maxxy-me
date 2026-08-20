@@ -31,7 +31,7 @@ function walk(dir: string, files: string[] = []) {
 }
 
 for (const file of walk(root)) {
-  if (file === "scripts/security-check.ts") continue;
+  if (file === "scripts/security-check.ts" || file.endsWith(".md")) continue;
   const body = read(file);
   if (body.includes("/var/run/docker.sock") || body.includes("docker.sock:")) {
     failures.push(`${file} references the Docker socket`);

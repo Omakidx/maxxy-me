@@ -1,5 +1,9 @@
 # maxxy-me Architecture
 
+> **Design history:** This is the original architecture specification. For the
+> implemented service boundaries and current deployment model, use the
+> [root architecture document](../../ARCHITECTURE.md).
+
 > Status: Planning and architecture phase
 > Project type: Personal, single-user multi-agent Codex workspace
 > Production deployment: Cloudflare-managed domain in front of a single self-hosted VPS

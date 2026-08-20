@@ -1,5 +1,10 @@
 # maxxy-me Execution Phase
 
+> **Design history:** This is the original detailed execution plan. Current
+> phase status, evidence links, and the launch decision live in
+> [execution-phase.md](../../execution-phase.md) and
+> [docs/launch-readiness.md](../launch-readiness.md).
+
 ## 1. Purpose
 
 This document defines the complete implementation order for **maxxy-me**, from an empty repository to a production-ready personal Codex workspace with isolated multi-account capacity routing.

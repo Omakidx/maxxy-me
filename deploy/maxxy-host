@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${BUN_BINARY:=/usr/local/bin/bun}"
+exec "${BUN_BINARY}" /opt/maxxy-me/apps/host-agent/src/agent.ts "$@"

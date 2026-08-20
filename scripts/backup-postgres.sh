@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${DATABASE_URL:?DATABASE_URL is required}"
 : "${BACKUP_STAGING_DIR:=/var/lib/maxxy-me/backup-staging}"
 : "${BACKUP_TARGET:?BACKUP_TARGET is required}"
 : "${BACKUP_ENCRYPTION_KEY_FILE:?BACKUP_ENCRYPTION_KEY_FILE is required}"
@@ -11,11 +10,26 @@ find "${BACKUP_STAGING_DIR}" -type f -mtime +2 -delete
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 dump_file="${BACKUP_STAGING_DIR}/maxxy-me-${timestamp}.dump"
+trap 'rm -f -- "${dump_file}"' EXIT
 encrypted_file="${dump_file}.age"
 checksum_file="${encrypted_file}.sha256"
 manifest_file="${encrypted_file}.manifest.json"
 
-pg_dump --format=custom --no-owner --no-acl --file="${dump_file}" "${DATABASE_URL}"
+if [[ "${BACKUP_USE_COMPOSE:-false}" == "true" ]]; then
+  : "${POSTGRES_USER:?POSTGRES_USER is required for Compose backup}"
+  : "${POSTGRES_DB:?POSTGRES_DB is required for Compose backup}"
+  compose=(docker compose -f compose.yaml -f compose.production.yaml)
+  "${compose[@]}" exec -T postgres pg_dump \
+    --username="${POSTGRES_USER}" \
+    --dbname="${POSTGRES_DB}" \
+    --format=custom \
+    --no-owner \
+    --no-acl > "${dump_file}"
+else
+  : "${DATABASE_URL:?DATABASE_URL is required for direct backup}"
+  pg_dump --format=custom --no-owner --no-acl --file="${dump_file}" "${DATABASE_URL}"
+fi
+
 pg_restore --list "${dump_file}" >/dev/null
 age --encrypt --recipients-file "${BACKUP_ENCRYPTION_KEY_FILE}" --output "${encrypted_file}" "${dump_file}"
 sha256sum "${encrypted_file}" > "${checksum_file}"

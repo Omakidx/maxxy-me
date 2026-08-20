@@ -1,5 +1,9 @@
 # maxxy-me User Flow
 
+> **Design history:** This flow includes planned product scope. Use the current
+> [root user flow](../../user-flow.md) for daily operation and
+> [launch readiness](../launch-readiness.md) for beta status.
+
 ## 1. Purpose
 
 This document defines how a user interacts with **maxxy-me**, from authentication through Codex execution and GitHub pull-request review.

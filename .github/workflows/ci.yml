@@ -50,6 +50,9 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Documentation
+        run: bun run docs:check
+
       - name: Migrate test database
         run: bun run db:migrate
 

@@ -228,10 +228,10 @@ export class Phase7WorkflowService {
         draft: true,
       });
       await this.recordPullRequest(task, context, pr);
+      await this.releaseLeases(task, "workflow_completed");
       await this.transitionTask(task, "awaiting_review", "phase7_pr_created", {
         pullRequestUrl: pr.url,
       });
-      await this.releaseLeases(task, "workflow_completed");
     } catch (error) {
       await this.failTask(hostId, taskId, context, error);
     }

@@ -27,8 +27,10 @@ echo "${APP_IMAGE_DIGEST}" > "${release_dir}/current-image.pending"
 
 "${compose[@]}" config --quiet
 
-if [[ -x ./scripts/backup-postgres.sh ]]; then
+if [[ -x ./scripts/backup-postgres.sh ]] && [[ -n "$("${compose[@]}" ps --status running -q postgres)" ]]; then
   ./scripts/backup-postgres.sh
+else
+  echo "Pre-deploy backup skipped: no running PostgreSQL service"
 fi
 
 "${compose[@]}" pull

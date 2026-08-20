@@ -1,0 +1,79 @@
+# Troubleshooting
+
+Start with health and logs. Redact cookies, authorization headers, tokens, repository URLs, and private paths before sharing output.
+
+## Control Plane Does Not Start
+
+```bash
+docker compose -f compose.yaml -f compose.production.yaml config --quiet
+docker compose -f compose.yaml -f compose.production.yaml ps
+docker compose -f compose.yaml -f compose.production.yaml logs --tail=100 web worker migrate postgres caddy
+```
+
+Check required environment values, immutable image availability, PostgreSQL health, migration failure, filesystem ownership, and free disk/inodes.
+
+## Health Check Fails
+
+```bash
+curl -v https://workspace.example.com/health
+APP_URL=https://workspace.example.com ./scripts/smoke-production.sh
+```
+
+Check DNS, certificate validity, Cloudflare SSL mode when used, firewall, Caddy logs, and web container health.
+
+## Cannot Create Owner
+
+Owner bootstrap is available only while no owner exists. If an owner exists, sign in or use the owner recovery procedure. Do not delete or edit owner rows manually.
+
+## Host Stays Offline
+
+```bash
+systemctl status maxxy-host.service
+journalctl -u maxxy-host.service -n 100 --no-pager
+sudo -u maxxy-host /usr/local/bin/maxxy-host doctor
+```
+
+Check system clock, HTTPS/WSS reachability, enrollment expiry, revoked host state, file permissions, protocol version, and the protected host configuration.
+
+## Codex Connection Is Not Ready
+
+Run the host registry and doctor checks. Verify the credential slot is readable only by the host account, Codex can start in that slot, and the connection is not limited, expired, disabled, revoked, or policy-blocked.
+
+Reauthenticate one lane at a time. Do not copy another lane's credential directory over it.
+
+## Task Does Not Start
+
+Check:
+
+- task state and dependencies;
+- online host and free host lease capacity;
+- ready Codex connection and pool membership;
+- ownership conflicts with active tasks;
+- validation profile and command policy;
+- pending billing-mode or dangerous-operation approval.
+
+Do not force task state with SQL.
+
+## Validation Fails
+
+Read the recorded command, exit code, capped output, and timeout. Reproduce in the task worktree as the host user. Fix the code or validation profile, then request changes or retry through the task workflow.
+
+## Pull Request Missing or Duplicated
+
+Check host `gh` authentication, remote push permission, branch name, stored PR metadata, and webhook deliveries. Retrying must update or discover the existing PR through the idempotent workflow. Do not manually create a second PR until the task record is reconciled.
+
+## Webhook Rejected
+
+Confirm the exact `GITHUB_WEBHOOK_SECRET`, JSON content type, public payload URL, TLS verification, signature header, and payload size. A redelivery with the same GitHub delivery ID should be deduplicated.
+
+## Repeated Disconnects
+
+Check clock drift, proxy WebSocket support, idle timeout, certificate chain, network packet loss, host heartbeat interval, and control-plane logs. The agent reconnects with bounded backoff.
+
+## Resource Pressure
+
+Inspect disk, inodes, memory, OOM events, PostgreSQL volume growth, Docker logs, backup staging, projects, and abandoned worktrees. Preserve active task worktrees and backup artifacts before cleanup.
+
+## Escalation
+
+If routine checks do not resolve the issue, capture the release digest, service status, redacted logs, affected task/host IDs, and recent events. Follow [recovery.md](recovery.md) when state or infrastructure must be rebuilt.

@@ -5,6 +5,7 @@ Requires=docker.service
 
 [Service]
 Type=oneshot
+WorkingDirectory=/opt/maxxy-me
 EnvironmentFile=/etc/maxxy-me/backup.env
 ExecStart=/opt/maxxy-me/scripts/backup-postgres.sh
 NoNewPrivileges=true

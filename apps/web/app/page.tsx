@@ -27,6 +27,7 @@ type ManagerPlan = {
 type DashboardData = {
   user?: JsonRecord;
   hosts: JsonRecord[];
+  codexConnections: JsonRecord[];
   workspaces: JsonRecord[];
   tasks: JsonRecord[];
   capacity: JsonRecord[];
@@ -36,6 +37,7 @@ type DashboardData = {
 
 const emptyData: DashboardData = {
   hosts: [],
+  codexConnections: [],
   workspaces: [],
   tasks: [],
   capacity: [],
@@ -65,6 +67,22 @@ export default function Page() {
   const [csrfToken, setCsrfToken] = useState("");
   const [message, setMessage] = useState("");
   const [data, setData] = useState<DashboardData>(emptyData);
+  const [deploymentMode, setDeploymentMode] = useState<"" | "local" | "vps">(
+    "",
+  );
+  const [githubReady, setGithubReady] = useState(false);
+  const [activeOnboardingStep, setActiveOnboardingStep] = useState(0);
+  const [enrollmentForm, setEnrollmentForm] = useState({
+    hostName: "Primary execution host",
+    maxConcurrentAgents: 1,
+  });
+  const [enrollmentCommand, setEnrollmentCommand] = useState("");
+  const [connectionForm, setConnectionForm] = useState({
+    hostId: "",
+    label: "Primary Codex connection",
+    authMode: "chatgpt",
+    credentialSlotId: "primary",
+  });
   const [authForm, setAuthForm] = useState({
     name: "Owner",
     email: "owner@example.com",
@@ -133,6 +151,23 @@ export default function Page() {
     (task) => text(task.status) === "awaiting_review",
   );
   const signedIn = state === "ready";
+  const readyCodexConnections = data.codexConnections.filter((connection) =>
+    [
+      "ready_chatgpt",
+      "ready_api_key",
+      "ready_enterprise_access_token",
+    ].includes(text(connection.status)),
+  );
+  const onboardingSteps = [
+    { label: "Deployment", complete: Boolean(deploymentMode) },
+    { label: "Owner", complete: signedIn },
+    { label: "GitHub", complete: githubReady },
+    { label: "Host", complete: onlineHosts.length > 0 },
+    { label: "Codex", complete: readyCodexConnections.length > 0 },
+    { label: "Repository", complete: data.workspaces.length > 0 },
+    { label: "First task", complete: data.tasks.length > 0 },
+  ];
+  const onboardingComplete = onboardingSteps.every((step) => step.complete);
   const statusLabel = useMemo(() => {
     if (state === "loading") return "Checking session";
     if (state === "bootstrap") return "Owner setup required";
@@ -181,9 +216,21 @@ export default function Page() {
           api("/api/approvals"),
           api("/api/events?limit=20"),
         ]);
+      const hostRows = (hosts.hosts as JsonRecord[]) ?? [];
+      const connectionResponses = await Promise.all(
+        hostRows.map((host) =>
+          api(
+            `/api/hosts/${encodeURIComponent(text(host.id))}/codex-connections`,
+          ),
+        ),
+      );
+      const codexConnections = connectionResponses.flatMap(
+        (result) => (result.connections as JsonRecord[]) ?? [],
+      );
       setData({
         user: me.user as JsonRecord,
-        hosts: (hosts.hosts as JsonRecord[]) ?? [],
+        hosts: hostRows,
+        codexConnections,
         workspaces: (workspaces.workspaces as JsonRecord[]) ?? [],
         tasks: (tasks.tasks as JsonRecord[]) ?? [],
         capacity: (capacity.capacity as JsonRecord[]) ?? [],
@@ -191,6 +238,10 @@ export default function Page() {
         events: (events.events as JsonRecord[]) ?? [],
       });
       setState("ready");
+      setConnectionForm((current) => ({
+        ...current,
+        hostId: current.hostId || text(hostRows[0]?.id, ""),
+      }));
       setMessage("");
     } catch (error) {
       setState("error");
@@ -263,6 +314,56 @@ export default function Page() {
         }),
       });
       setMessage("Workspace created");
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function createHostEnrollment() {
+    try {
+      const result = await api("/api/hosts/enrollment", {
+        method: "POST",
+        body: JSON.stringify(enrollmentForm),
+      });
+      const token = text(result.enrollmentToken, "");
+      setEnrollmentCommand(
+        `bun run start:host -- enroll --server ${window.location.origin} --token ${token}`,
+      );
+      setMessage(
+        "Enrollment command created. It is single-use and expires soon.",
+      );
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function setupCodexConnection() {
+    try {
+      if (!connectionForm.hostId) {
+        throw new Error("Enroll a host before adding a Codex connection");
+      }
+      await api(
+        `/api/hosts/${encodeURIComponent(connectionForm.hostId)}/codex-connections/setup`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            label: connectionForm.label,
+            authMode: connectionForm.authMode,
+            credentialSlotId: connectionForm.credentialSlotId,
+            capacitySourceLabel: connectionForm.label,
+            capacitySourceKind:
+              connectionForm.authMode === "api_key"
+                ? "api_project"
+                : "chatgpt_account",
+            maxConcurrentRuns: 1,
+          }),
+        },
+      );
+      setMessage(
+        "Codex connection registered. Complete authentication on the selected host, then sync.",
+      );
       await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
@@ -401,6 +502,30 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
+    const storedMode = window.localStorage.getItem("maxxy.deploymentMode");
+    if (storedMode === "local" || storedMode === "vps") {
+      setDeploymentMode(storedMode);
+    }
+    setGithubReady(window.localStorage.getItem("maxxy.githubReady") === "true");
+  }, []);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    const firstIncomplete = onboardingSteps.findIndex((step) => !step.complete);
+    if (firstIncomplete >= 0) {
+      setActiveOnboardingStep(firstIncomplete);
+    }
+  }, [
+    signedIn,
+    deploymentMode,
+    githubReady,
+    data.hosts.length,
+    data.workspaces.length,
+    data.tasks.length,
+    readyCodexConnections.length,
+  ]);
+
+  useEffect(() => {
     if (!signedIn) return;
     const timer = window.setInterval(() => void refresh(), 10_000);
     return () => window.clearInterval(timer);
@@ -419,6 +544,9 @@ export default function Page() {
         <nav className="nav-list">
           <a className="nav-link active" href="#dashboard">
             Dashboard
+          </a>
+          <a className="nav-link" href="#onboarding">
+            Setup
           </a>
           <a className="nav-link" href="#plans">
             Plans
@@ -441,7 +569,7 @@ export default function Page() {
       <section className="workspace" id="dashboard">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Phase 8</p>
+            <p className="eyebrow">Personal coding workspace</p>
             <h1>Execution dashboard</h1>
             <p className="subtle">{statusLabel}</p>
           </div>
@@ -501,6 +629,286 @@ export default function Page() {
           </Card>
         ) : (
           <>
+            <Card className="onboarding-panel" id="onboarding">
+              <div className="section-heading">
+                <div>
+                  <CardLabel>Guided onboarding</CardLabel>
+                  <h2>
+                    {onboardingComplete ? "Workspace ready" : "Finish setup"}
+                  </h2>
+                </div>
+                <Badge variant={onboardingComplete ? "success" : "muted"}>
+                  {onboardingSteps.filter((step) => step.complete).length} /{" "}
+                  {onboardingSteps.length}
+                </Badge>
+              </div>
+              <div className="onboarding-layout">
+                <div
+                  aria-label="Setup steps"
+                  className="onboarding-steps"
+                  role="tablist"
+                >
+                  {onboardingSteps.map((step, index) => (
+                    <button
+                      aria-selected={activeOnboardingStep === index}
+                      className={`onboarding-step ${activeOnboardingStep === index ? "active" : ""}`}
+                      key={step.label}
+                      onClick={() => setActiveOnboardingStep(index)}
+                      role="tab"
+                      type="button"
+                    >
+                      <span>{index + 1}</span>
+                      <strong>{step.label}</strong>
+                      <Badge variant={step.complete ? "success" : "muted"}>
+                        {step.complete ? "Done" : "Open"}
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+                <div className="onboarding-content" role="tabpanel">
+                  {activeOnboardingStep === 0 ? (
+                    <>
+                      <h3>Choose where maxxy-me runs</h3>
+                      <p>
+                        Use local mode for development or VPS mode for an
+                        always-on private workspace.
+                      </p>
+                      <div className="segmented-control">
+                        {(["local", "vps"] as const).map((mode) => (
+                          <button
+                            aria-pressed={deploymentMode === mode}
+                            className={deploymentMode === mode ? "active" : ""}
+                            key={mode}
+                            onClick={() => {
+                              setDeploymentMode(mode);
+                              window.localStorage.setItem(
+                                "maxxy.deploymentMode",
+                                mode,
+                              );
+                            }}
+                            type="button"
+                          >
+                            {mode === "local"
+                              ? "Local development"
+                              : "Production VPS"}
+                          </button>
+                        ))}
+                      </div>
+                      {deploymentMode ? (
+                        <a
+                          className="doc-link"
+                          href={
+                            deploymentMode === "local"
+                              ? "https://github.com/Omakidx/maxxy-me#local-development"
+                              : "https://github.com/Omakidx/maxxy-me/blob/main/docs/vps-deployment.md"
+                          }
+                        >
+                          Open deployment guide
+                        </a>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {activeOnboardingStep === 1 ? (
+                    <>
+                      <h3>Owner account</h3>
+                      <p>
+                        Your private owner account is active as{" "}
+                        {text(data.user?.email, "owner")}.
+                      </p>
+                      <Badge variant="success">Public signup disabled</Badge>
+                    </>
+                  ) : null}
+                  {activeOnboardingStep === 2 ? (
+                    <>
+                      <h3>Authorize GitHub</h3>
+                      <p>
+                        Install the GitHub App for the repositories you plan to
+                        import and configure its webhook secret.
+                      </p>
+                      <label className="check-field">
+                        <input
+                          checked={githubReady}
+                          onChange={(event) => {
+                            setGithubReady(event.target.checked);
+                            window.localStorage.setItem(
+                              "maxxy.githubReady",
+                              String(event.target.checked),
+                            );
+                          }}
+                          type="checkbox"
+                        />
+                        GitHub App installed and webhook configured
+                      </label>
+                      <a
+                        className="doc-link"
+                        href="https://github.com/Omakidx/maxxy-me/blob/main/docs/github-app.md"
+                      >
+                        Open GitHub setup guide
+                      </a>
+                    </>
+                  ) : null}
+                  {activeOnboardingStep === 3 ? (
+                    <>
+                      <h3>Enroll an execution host</h3>
+                      <div className="two-col">
+                        <Input
+                          label="Host name"
+                          value={enrollmentForm.hostName}
+                          onChange={(event) =>
+                            setEnrollmentForm({
+                              ...enrollmentForm,
+                              hostName: event.target.value,
+                            })
+                          }
+                        />
+                        <Input
+                          label="Concurrent agents"
+                          max="20"
+                          min="1"
+                          type="number"
+                          value={enrollmentForm.maxConcurrentAgents}
+                          onChange={(event) =>
+                            setEnrollmentForm({
+                              ...enrollmentForm,
+                              maxConcurrentAgents: Number(event.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                      <Button
+                        disabled={!enrollmentForm.hostName}
+                        onClick={() => void createHostEnrollment()}
+                        variant="primary"
+                      >
+                        Create enrollment command
+                      </Button>
+                      {enrollmentCommand ? (
+                        <code className="command-block">
+                          {enrollmentCommand}
+                        </code>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {activeOnboardingStep === 4 ? (
+                    <>
+                      <h3>Connect and check Codex</h3>
+                      <div className="two-col">
+                        <label className="field">
+                          <span>Execution host</span>
+                          <select
+                            value={connectionForm.hostId}
+                            onChange={(event) =>
+                              setConnectionForm({
+                                ...connectionForm,
+                                hostId: event.target.value,
+                              })
+                            }
+                          >
+                            <option value="">Select host</option>
+                            {data.hosts.map((host) => (
+                              <option key={text(host.id)} value={text(host.id)}>
+                                {text(host.name)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="field">
+                          <span>Authentication</span>
+                          <select
+                            value={connectionForm.authMode}
+                            onChange={(event) =>
+                              setConnectionForm({
+                                ...connectionForm,
+                                authMode: event.target.value,
+                              })
+                            }
+                          >
+                            <option value="chatgpt">ChatGPT account</option>
+                            <option value="api_key">API key</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div className="two-col">
+                        <Input
+                          label="Connection label"
+                          value={connectionForm.label}
+                          onChange={(event) =>
+                            setConnectionForm({
+                              ...connectionForm,
+                              label: event.target.value,
+                            })
+                          }
+                        />
+                        <Input
+                          label="Credential slot"
+                          value={connectionForm.credentialSlotId}
+                          onChange={(event) =>
+                            setConnectionForm({
+                              ...connectionForm,
+                              credentialSlotId: event.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <Button
+                        disabled={
+                          !connectionForm.hostId ||
+                          !connectionForm.label ||
+                          !connectionForm.credentialSlotId
+                        }
+                        onClick={() => void setupCodexConnection()}
+                        variant="primary"
+                      >
+                        Register connection
+                      </Button>
+                      <div className="connection-statuses">
+                        {data.codexConnections.map((connection) => (
+                          <div key={text(connection.id)}>
+                            <strong>{text(connection.label)}</strong>
+                            <Badge
+                              variant={
+                                text(connection.status).startsWith("ready_")
+                                  ? "success"
+                                  : "muted"
+                              }
+                            >
+                              {text(connection.status)}
+                            </Badge>
+                          </div>
+                        ))}
+                        {data.codexConnections.length === 0 ? (
+                          <p>No Codex connections registered yet.</p>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : null}
+                  {activeOnboardingStep === 5 ? (
+                    <>
+                      <h3>Import a repository</h3>
+                      <p>
+                        Register the GitHub remote and persistent host paths.
+                      </p>
+                      <a className="doc-link" href="#repository-setup">
+                        Continue to repository setup
+                      </a>
+                    </>
+                  ) : null}
+                  {activeOnboardingStep === 6 ? (
+                    <>
+                      <h3>Create the first task</h3>
+                      <p>
+                        Give Codex a focused change and follow its validation
+                        and pull request evidence below.
+                      </p>
+                      <a className="doc-link" href="#first-task">
+                        Continue to task setup
+                      </a>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            </Card>
+
             <section className="metric-grid" aria-label="System summary">
               <Metric
                 label="Active tasks"
@@ -703,7 +1111,7 @@ export default function Page() {
             </Card>
 
             <section className="form-grid">
-              <Card className="form-card">
+              <Card className="form-card" id="repository-setup">
                 <CardLabel>Workspace</CardLabel>
                 <h2>Create workspace</h2>
                 <Input
@@ -776,7 +1184,7 @@ export default function Page() {
                 </Button>
               </Card>
 
-              <Card className="form-card">
+              <Card className="form-card" id="first-task">
                 <CardLabel>Task</CardLabel>
                 <h2>Create task</h2>
                 <label className="field">
