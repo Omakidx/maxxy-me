@@ -210,7 +210,7 @@ h2 {
 }
 
 .route-view {
-  display: none;
+  display: none !important;
 }
 
 .route-dashboard .view-dashboard.metric-grid,
@@ -220,13 +220,13 @@ h2 {
 .route-settings .view-settings.form-grid,
 .route-approvals .view-approvals.content-grid,
 .route-events .view-events.content-grid {
-  display: grid;
+  display: grid !important;
 }
 
 .route-setup .view-setup.onboarding-panel,
 .route-agent .view-agent.execution-studio,
 .route-plans .view-plans.plan-panel {
-  display: block;
+  display: block !important;
 }
 
 .split-route-grid {
@@ -239,7 +239,7 @@ h2 {
 .route-settings .view-setup-only,
 .route-approvals .view-events-only,
 .route-events .view-approvals-only {
-  display: none;
+  display: none !important;
 }
 
 .metric-grid {
@@ -373,12 +373,51 @@ h2 {
   color: var(--muted-foreground);
 }
 
-.notice {
+.notification-card {
+  position: fixed;
+  top: 82px;
+  right: 24px;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 12px;
+  width: min(440px, calc(100vw - 32px));
   border: 1px solid var(--border);
-  background: var(--muted);
+  background: var(--card);
   color: var(--foreground);
-  margin-bottom: 12px;
-  padding: 12px 14px;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 18%);
+  padding: 12px;
+  animation: notification-enter 160ms ease-out;
+}
+
+.notification-card > span {
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.notification-dismiss {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--background);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.notification-dismiss svg {
+  width: 16px;
+  height: 16px;
+}
+
+@keyframes notification-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
 }
 
 .auth-card {
@@ -591,6 +630,19 @@ h2 {
   width: 16px;
   height: 16px;
   accent-color: var(--foreground);
+}
+
+.readonly-value {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  color: var(--foreground);
+  padding: 8px 10px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-transform: none;
 }
 
 .link-button {

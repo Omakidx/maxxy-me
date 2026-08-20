@@ -14,8 +14,10 @@ import {
   ShieldCheck,
   Trash2,
   Unplug,
+  X,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ThemeToggle } from "./theme-toggle";
 import { Badge, Button, Card, CardLabel, Input, Textarea } from "./ui";
@@ -177,6 +179,7 @@ export default function DashboardApp({
   activePage: DashboardPage;
 }) {
   const [state, setState] = useState<ApiState>("loading");
+  const router = useRouter();
   const [csrfToken, setCsrfToken] = useState("");
   const [message, setMessage] = useState("");
   const [data, setData] = useState<DashboardData>(emptyData);
@@ -193,7 +196,6 @@ export default function DashboardApp({
   const [connectionForm, setConnectionForm] = useState({
     hostId: "",
     label: "Primary Codex connection",
-    authMode: "chatgpt",
     credentialSlotId: "primary",
   });
   const [authForm, setAuthForm] = useState({
@@ -278,10 +280,14 @@ export default function DashboardApp({
   );
   const signedIn = state === "ready";
   const readyCodexConnections = data.codexConnections.filter(isReadyConnection);
+  const connectedCodexConnections = data.codexConnections.filter(
+    (connection) =>
+      isReadyConnection(connection) || text(connection.status) === "disabled",
+  );
   const hostsById = new Map(
     data.hosts.map((host) => [text(host.id), host] as const),
   );
-  const selectedHostConnections = data.codexConnections.filter(
+  const selectedHostConnections = connectedCodexConnections.filter(
     (connection) => text(connection.host_id) === connectionForm.hostId,
   );
   const onboardingSteps = [
@@ -294,6 +300,7 @@ export default function DashboardApp({
     { label: "First task", complete: data.tasks.length > 0 },
   ];
   const onboardingComplete = onboardingSteps.every((step) => step.complete);
+  const setupComplete = data.hosts.length > 0 && data.workspaces.length > 0;
   const statusLabel = useMemo(() => {
     if (state === "loading") return "Checking session";
     if (state === "bootstrap") return "Owner setup required";
@@ -477,9 +484,10 @@ export default function DashboardApp({
   }
 
   async function setupCodexConnection() {
+    setConnectionAction("new:prepare");
     try {
       if (!connectionForm.hostId) {
-        throw new Error("Enroll a host before adding a Codex connection");
+        throw new Error("Enroll an online host before adding an account");
       }
       const result = await api(
         `/api/hosts/${encodeURIComponent(connectionForm.hostId)}/codex-connections/setup`,
@@ -487,25 +495,24 @@ export default function DashboardApp({
           method: "POST",
           body: JSON.stringify({
             label: connectionForm.label,
-            authMode: connectionForm.authMode,
+            authMode: "chatgpt",
             credentialSlotId: connectionForm.credentialSlotId,
             capacitySourceLabel: connectionForm.label,
-            capacitySourceKind:
-              connectionForm.authMode === "api_key"
-                ? "api_project"
-                : "chatgpt_account",
+            capacitySourceKind: "chatgpt_account",
             maxConcurrentRuns: 1,
           }),
         },
       );
-      const connection = result.connection as JsonRecord;
+      const connection = record(result.connection);
       setCodexLoginCommand(connectionLoginCommand(connection, deploymentMode));
       setMessage(
-        "Codex connection prepared. Run the login command on the selected host.",
+        "Login command generated. Run it on the selected host; the account will appear after authentication succeeds.",
       );
       await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setConnectionAction("");
     }
   }
   async function manageCodexConnection(
@@ -538,7 +545,9 @@ export default function DashboardApp({
             deploymentMode,
           ),
         );
-        setMessage("Run the login command below on the selected host.");
+        setMessage(
+          "Login command generated. Run it on the assigned host to reconnect the account.",
+        );
       } else if (action === "disconnect") {
         const result = await api(
           `/api/codex-connections/${encodeURIComponent(connectionId)}/disable`,
@@ -825,6 +834,16 @@ export default function DashboardApp({
     const timer = window.setInterval(() => void refresh(), 5_000);
     return () => window.clearInterval(timer);
   }, [signedIn, csrfToken]);
+  useEffect(() => {
+    if (state === "ready" && activePage === "setup" && setupComplete) {
+      router.replace("/");
+    }
+  }, [activePage, router, setupComplete, state]);
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(""), 8_000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
 
   return (
     <main className="app-shell">
@@ -844,13 +863,15 @@ export default function DashboardApp({
             <LayoutDashboard aria-hidden="true" />
             <span>Dashboard</span>
           </Link>
-          <Link
-            className={`nav-link ${activePage === "setup" ? "active" : ""}`}
-            href="/setup"
-          >
-            <ShieldCheck aria-hidden="true" />
-            <span>Setup</span>
-          </Link>
+          {!setupComplete ? (
+            <Link
+              className={`nav-link ${activePage === "setup" ? "active" : ""}`}
+              href="/setup"
+            >
+              <ShieldCheck aria-hidden="true" />
+              <span>Setup</span>
+            </Link>
+          ) : null}
           <Link
             className={`nav-link ${activePage === "agent" ? "active" : ""}`}
             href="/agent"
@@ -919,7 +940,19 @@ export default function DashboardApp({
           </div>
         </header>
 
-        {message ? <div className="notice">{message}</div> : null}
+        {message ? (
+          <output aria-live="polite" className="notification-card">
+            <span>{message}</span>
+            <button
+              aria-label="Dismiss notification"
+              className="notification-dismiss"
+              onClick={() => setMessage("")}
+              type="button"
+            >
+              <X aria-hidden="true" />
+            </button>
+          </output>
+        ) : null}
 
         {!signedIn ? (
           <Card className="auth-card">
@@ -966,1141 +999,1202 @@ export default function DashboardApp({
           </Card>
         ) : (
           <>
-            <Card className="onboarding-panel route-view view-setup">
-              <div className="section-heading">
-                <div>
-                  <CardLabel>Guided onboarding</CardLabel>
-                  <h2>
-                    {onboardingComplete ? "Workspace ready" : "Finish setup"}
-                  </h2>
+            {activePage === "setup" && !setupComplete ? (
+              <Card className="onboarding-panel route-view view-setup">
+                <div className="section-heading">
+                  <div>
+                    <CardLabel>Guided onboarding</CardLabel>
+                    <h2>
+                      {onboardingComplete ? "Workspace ready" : "Finish setup"}
+                    </h2>
+                  </div>
+                  <Badge variant={onboardingComplete ? "success" : "muted"}>
+                    {onboardingSteps.filter((step) => step.complete).length} /{" "}
+                    {onboardingSteps.length}
+                  </Badge>
                 </div>
-                <Badge variant={onboardingComplete ? "success" : "muted"}>
-                  {onboardingSteps.filter((step) => step.complete).length} /{" "}
-                  {onboardingSteps.length}
-                </Badge>
-              </div>
-              <div className="onboarding-layout">
-                <div
-                  aria-label="Setup steps"
-                  className="onboarding-steps"
-                  role="tablist"
-                >
-                  {onboardingSteps.map((step, index) => (
-                    <button
-                      aria-selected={activeOnboardingStep === index}
-                      className={`onboarding-step ${activeOnboardingStep === index ? "active" : ""}`}
-                      key={step.label}
-                      onClick={() => setActiveOnboardingStep(index)}
-                      role="tab"
-                      type="button"
-                    >
-                      <span>{index + 1}</span>
-                      <strong>{step.label}</strong>
-                      <Badge variant={step.complete ? "success" : "muted"}>
-                        {step.complete ? "Done" : "Open"}
-                      </Badge>
-                    </button>
-                  ))}
-                </div>
-                <div className="onboarding-content" role="tabpanel">
-                  {activeOnboardingStep === 0 ? (
-                    <>
-                      <h3>Choose where maxxy-me runs</h3>
-                      <p>
-                        Use local mode for development or VPS mode for an
-                        always-on private workspace.
-                      </p>
-                      <div className="segmented-control">
-                        {(["local", "vps"] as const).map((mode) => (
-                          <button
-                            aria-pressed={deploymentMode === mode}
-                            className={deploymentMode === mode ? "active" : ""}
-                            key={mode}
-                            onClick={() => {
-                              setDeploymentMode(mode);
+                <div className="onboarding-layout">
+                  <div
+                    aria-label="Setup steps"
+                    className="onboarding-steps"
+                    role="tablist"
+                  >
+                    {onboardingSteps.map((step, index) => (
+                      <button
+                        aria-selected={activeOnboardingStep === index}
+                        className={`onboarding-step ${activeOnboardingStep === index ? "active" : ""}`}
+                        key={step.label}
+                        onClick={() => setActiveOnboardingStep(index)}
+                        role="tab"
+                        type="button"
+                      >
+                        <span>{index + 1}</span>
+                        <strong>{step.label}</strong>
+                        <Badge variant={step.complete ? "success" : "muted"}>
+                          {step.complete ? "Done" : "Open"}
+                        </Badge>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="onboarding-content" role="tabpanel">
+                    {activeOnboardingStep === 0 ? (
+                      <>
+                        <h3>Choose where maxxy-me runs</h3>
+                        <p>
+                          Use local mode for development or VPS mode for an
+                          always-on private workspace.
+                        </p>
+                        <div className="segmented-control">
+                          {(["local", "vps"] as const).map((mode) => (
+                            <button
+                              aria-pressed={deploymentMode === mode}
+                              className={
+                                deploymentMode === mode ? "active" : ""
+                              }
+                              key={mode}
+                              onClick={() => {
+                                setDeploymentMode(mode);
+                                window.localStorage.setItem(
+                                  "maxxy.deploymentMode",
+                                  mode,
+                                );
+                              }}
+                              type="button"
+                            >
+                              {mode === "local"
+                                ? "Local development"
+                                : "Production VPS"}
+                            </button>
+                          ))}
+                        </div>
+                        {deploymentMode ? (
+                          <a
+                            className="doc-link"
+                            href={
+                              deploymentMode === "local"
+                                ? "https://github.com/Omakidx/maxxy-me#local-development"
+                                : "https://github.com/Omakidx/maxxy-me/blob/main/docs/vps-deployment.md"
+                            }
+                          >
+                            Open deployment guide
+                          </a>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {activeOnboardingStep === 1 ? (
+                      <>
+                        <h3>Owner account</h3>
+                        <p>
+                          Your private owner account is active as{" "}
+                          {text(data.user?.email, "owner")}.
+                        </p>
+                        <Badge variant="success">Public signup disabled</Badge>
+                      </>
+                    ) : null}
+                    {activeOnboardingStep === 2 ? (
+                      <>
+                        <h3>Authorize GitHub</h3>
+                        <p>
+                          Install the GitHub App for the repositories you plan
+                          to import and configure its webhook secret.
+                        </p>
+                        <label className="check-field">
+                          <input
+                            checked={githubReady}
+                            onChange={(event) => {
+                              setGithubReady(event.target.checked);
                               window.localStorage.setItem(
-                                "maxxy.deploymentMode",
-                                mode,
+                                "maxxy.githubReady",
+                                String(event.target.checked),
                               );
                             }}
-                            type="button"
-                          >
-                            {mode === "local"
-                              ? "Local development"
-                              : "Production VPS"}
-                          </button>
-                        ))}
-                      </div>
-                      {deploymentMode ? (
+                            type="checkbox"
+                          />
+                          GitHub App installed and webhook configured
+                        </label>
                         <a
                           className="doc-link"
-                          href={
-                            deploymentMode === "local"
-                              ? "https://github.com/Omakidx/maxxy-me#local-development"
-                              : "https://github.com/Omakidx/maxxy-me/blob/main/docs/vps-deployment.md"
-                          }
+                          href="https://github.com/Omakidx/maxxy-me/blob/main/docs/github-app.md"
                         >
-                          Open deployment guide
+                          Open GitHub setup guide
                         </a>
-                      ) : null}
-                    </>
-                  ) : null}
-                  {activeOnboardingStep === 1 ? (
-                    <>
-                      <h3>Owner account</h3>
-                      <p>
-                        Your private owner account is active as{" "}
-                        {text(data.user?.email, "owner")}.
-                      </p>
-                      <Badge variant="success">Public signup disabled</Badge>
-                    </>
-                  ) : null}
-                  {activeOnboardingStep === 2 ? (
-                    <>
-                      <h3>Authorize GitHub</h3>
-                      <p>
-                        Install the GitHub App for the repositories you plan to
-                        import and configure its webhook secret.
-                      </p>
-                      <label className="check-field">
-                        <input
-                          checked={githubReady}
-                          onChange={(event) => {
-                            setGithubReady(event.target.checked);
-                            window.localStorage.setItem(
-                              "maxxy.githubReady",
-                              String(event.target.checked),
-                            );
-                          }}
-                          type="checkbox"
-                        />
-                        GitHub App installed and webhook configured
-                      </label>
-                      <a
-                        className="doc-link"
-                        href="https://github.com/Omakidx/maxxy-me/blob/main/docs/github-app.md"
-                      >
-                        Open GitHub setup guide
-                      </a>
-                    </>
-                  ) : null}
-                  {activeOnboardingStep === 3 ? (
-                    <>
-                      <h3>Enroll an execution host</h3>
-                      <div className="two-col">
-                        <Input
-                          label="Host name"
-                          value={enrollmentForm.hostName}
-                          onChange={(event) =>
-                            setEnrollmentForm({
-                              ...enrollmentForm,
-                              hostName: event.target.value,
-                            })
-                          }
-                        />
-                        <Input
-                          label="Concurrent agents"
-                          max="20"
-                          min="1"
-                          type="number"
-                          value={enrollmentForm.maxConcurrentAgents}
-                          onChange={(event) =>
-                            setEnrollmentForm({
-                              ...enrollmentForm,
-                              maxConcurrentAgents: Number(event.target.value),
-                            })
-                          }
-                        />
-                      </div>
-                      <Button
-                        disabled={!enrollmentForm.hostName}
-                        onClick={() => void createHostEnrollment()}
-                        variant="primary"
-                      >
-                        Create enrollment command
-                      </Button>
-                      {enrollmentCommand ? (
-                        <>
-                          <code className="command-block">
-                            {enrollmentCommand}
-                          </code>
-                          <p>
-                            {deploymentMode === "vps"
-                              ? "Run this on the installed VPS host before the token expires."
-                              : "Run this from the maxxy-me repository root before the token expires."}
-                          </p>
-                        </>
-                      ) : null}
-                    </>
-                  ) : null}
-                  {activeOnboardingStep === 4 ? (
-                    <>
-                      <h3>Connect and check Codex</h3>
-                      <div className="two-col">
-                        <label className="field">
-                          <span>Execution host</span>
-                          <select
-                            value={connectionForm.hostId}
+                      </>
+                    ) : null}
+                    {activeOnboardingStep === 3 ? (
+                      <>
+                        <h3>Enroll an execution host</h3>
+                        <div className="two-col">
+                          <Input
+                            label="Host name"
+                            value={enrollmentForm.hostName}
                             onChange={(event) =>
-                              setConnectionForm({
-                                ...connectionForm,
-                                hostId: event.target.value,
+                              setEnrollmentForm({
+                                ...enrollmentForm,
+                                hostName: event.target.value,
                               })
                             }
-                          >
-                            <option value="">Select host</option>
-                            {data.hosts.map((host) => (
-                              <option
-                                disabled={text(host.status) !== "online"}
-                                key={text(host.id)}
-                                value={text(host.id)}
-                              >
-                                {text(host.name)} ({text(host.status)})
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="field">
-                          <span>Authentication</span>
-                          <select
-                            value={connectionForm.authMode}
+                          />
+                          <Input
+                            label="Concurrent agents"
+                            max="20"
+                            min="1"
+                            type="number"
+                            value={enrollmentForm.maxConcurrentAgents}
                             onChange={(event) =>
-                              setConnectionForm({
-                                ...connectionForm,
-                                authMode: event.target.value,
+                              setEnrollmentForm({
+                                ...enrollmentForm,
+                                maxConcurrentAgents: Number(event.target.value),
                               })
                             }
-                          >
-                            <option value="chatgpt">ChatGPT account</option>
-                            <option value="api_key">API key</option>
-                          </select>
-                        </label>
-                      </div>
-                      <div className="two-col">
-                        <Input
-                          label="Connection label"
-                          value={connectionForm.label}
-                          onChange={(event) =>
-                            setConnectionForm({
-                              ...connectionForm,
-                              label: event.target.value,
-                            })
-                          }
-                        />
-                        <Input
-                          label="Credential slot"
-                          value={connectionForm.credentialSlotId}
-                          onChange={(event) =>
-                            setConnectionForm({
-                              ...connectionForm,
-                              credentialSlotId: event.target.value,
-                            })
-                          }
-                        />
-                      </div>
-                      <Button
-                        disabled={
-                          !connectionForm.hostId ||
-                          !connectionForm.label ||
-                          !connectionForm.credentialSlotId
-                        }
-                        onClick={() => void setupCodexConnection()}
-                        variant="primary"
-                      >
-                        Register connection
-                      </Button>
-                      {codexLoginCommand ? (
-                        <>
-                          <p>
-                            Keep the host agent running and execute this in a
-                            separate terminal on the selected host.
-                          </p>
-                          <code className="command-block">
-                            {codexLoginCommand}
-                          </code>
-                        </>
-                      ) : null}
-                      <div className="connection-statuses">
-                        {selectedHostConnections.map((connection) => (
-                          <div key={text(connection.id)}>
-                            <strong>{text(connection.label)}</strong>
-                            <Badge
-                              variant={
-                                text(connection.status).startsWith("ready_")
-                                  ? "success"
-                                  : "muted"
+                          />
+                        </div>
+                        <Button
+                          disabled={!enrollmentForm.hostName}
+                          onClick={() => void createHostEnrollment()}
+                          variant="primary"
+                        >
+                          Create enrollment command
+                        </Button>
+                        {enrollmentCommand ? (
+                          <>
+                            <code className="command-block">
+                              {enrollmentCommand}
+                            </code>
+                            <p>
+                              {deploymentMode === "vps"
+                                ? "Run this on the installed VPS host before the token expires."
+                                : "Run this from the maxxy-me repository root before the token expires."}
+                            </p>
+                          </>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {activeOnboardingStep === 4 ? (
+                      <>
+                        <h3>Connect and check Codex</h3>
+                        <div className="two-col">
+                          <label className="field">
+                            <span>Execution host</span>
+                            <select
+                              value={connectionForm.hostId}
+                              onChange={(event) =>
+                                setConnectionForm({
+                                  ...connectionForm,
+                                  hostId: event.target.value,
+                                })
                               }
                             >
-                              {text(connection.status)}
-                            </Badge>
+                              <option value="">Select host</option>
+                              {data.hosts.map((host) => (
+                                <option
+                                  disabled={text(host.status) !== "online"}
+                                  key={text(host.id)}
+                                  value={text(host.id)}
+                                >
+                                  {text(host.name)} ({text(host.status)})
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <div className="field">
+                            <span>Authentication</span>
+                            <div className="readonly-value">
+                              ChatGPT account
+                            </div>
                           </div>
-                        ))}
-                        {selectedHostConnections.length === 0 ? (
-                          <p>No Codex connections registered yet.</p>
-                        ) : null}
-                      </div>
-                    </>
-                  ) : null}
-                  {activeOnboardingStep === 5 ? (
-                    <>
-                      <h3>Import a repository</h3>
-                      <p>
-                        Register the GitHub remote and persistent host paths.
-                      </p>
-                      <Link className="doc-link" href="/setup">
-                        Continue to repository setup
-                      </Link>
-                    </>
-                  ) : null}
-                  {activeOnboardingStep === 6 ? (
-                    <>
-                      <h3>Create the first task</h3>
-                      <p>
-                        Give Codex a focused change and follow its validation
-                        and pull request evidence below.
-                      </p>
-                      <Link className="doc-link" href="/agent">
-                        Continue to task setup
-                      </Link>
-                    </>
-                  ) : null}
-                </div>
-              </div>
-            </Card>
-
-            <section
-              className="metric-grid route-view view-dashboard"
-              aria-label="System summary"
-            >
-              <Metric
-                label="Active tasks"
-                value={activeTasks.length}
-                detail="Tasks currently assigned, running, validating, pushing, or opening a PR."
-              />
-              <Metric
-                label="Hosts online"
-                value={`${onlineHosts.length} / ${data.hosts.length}`}
-                detail="Enrolled host agents connected through authenticated WSS."
-              />
-              <Metric
-                label="Ready capacity"
-                value={data.capacity.length}
-                detail="Capacity sources reported by the control plane."
-              />
-              <Metric
-                label="Review queue"
-                value={openPrTasks.length}
-                detail="Tasks waiting for owner review after draft PR creation."
-              />
-            </section>
-
-            <Card className="execution-studio route-view view-agent">
-              <div className="section-heading execution-heading">
-                <div>
-                  <CardLabel>Agent console</CardLabel>
-                  <h2>Prompt and live execution</h2>
-                </div>
-                <Badge
-                  className="stream-badge"
-                  variant={streamState === "live" ? "success" : "muted"}
-                >
-                  <Radio aria-hidden="true" />
-                  {streamState}
-                </Badge>
-              </div>
-              <div className="execution-grid">
-                <section className="prompt-composer">
-                  <label className="field">
-                    <span>Workspace</span>
-                    <select
-                      value={selectedWorkspaceId}
-                      onChange={(event) =>
-                        setTaskForm({
-                          ...taskForm,
-                          workspaceId: event.target.value,
-                        })
-                      }
-                    >
-                      {data.workspaces.map((workspace) => (
-                        <option
-                          value={text(workspace.id)}
-                          key={text(workspace.id)}
+                        </div>
+                        <div className="two-col">
+                          <Input
+                            label="Connection label"
+                            value={connectionForm.label}
+                            onChange={(event) =>
+                              setConnectionForm({
+                                ...connectionForm,
+                                label: event.target.value,
+                              })
+                            }
+                          />
+                          <Input
+                            label="Credential slot"
+                            value={connectionForm.credentialSlotId}
+                            onChange={(event) =>
+                              setConnectionForm({
+                                ...connectionForm,
+                                credentialSlotId: event.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <Button
+                          disabled={
+                            !connectionForm.hostId ||
+                            Boolean(connectionAction) ||
+                            !connectionForm.label ||
+                            !connectionForm.credentialSlotId
+                          }
+                          onClick={() => void setupCodexConnection()}
+                          variant="primary"
                         >
-                          {text(workspace.name)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <Input
-                    label="Task title"
-                    placeholder="Describe the outcome"
-                    value={taskForm.title}
-                    onChange={(event) =>
-                      setTaskForm({ ...taskForm, title: event.target.value })
-                    }
-                  />
-                  <Textarea
-                    className="agent-prompt"
-                    label="Prompt"
-                    placeholder="Tell the agent what to build, change, or investigate..."
-                    value={taskForm.prompt}
-                    onChange={(event) =>
-                      setTaskForm({ ...taskForm, prompt: event.target.value })
-                    }
-                  />
-                  <div className="composer-actions">
-                    <label className="check-field">
-                      <input
-                        checked={taskForm.startImmediately}
-                        type="checkbox"
+                          {connectionAction === "new:prepare"
+                            ? "Preparing command..."
+                            : "Connect account"}
+                        </Button>
+                        {codexLoginCommand ? (
+                          <div className="login-command">
+                            <span>
+                              Run this on the selected host, then complete
+                              ChatGPT authentication.
+                            </span>
+                            <code className="command-block">
+                              {codexLoginCommand}
+                            </code>
+                          </div>
+                        ) : null}
+                        <div className="connection-statuses">
+                          {selectedHostConnections.map((connection) => (
+                            <div key={text(connection.id)}>
+                              <strong>{text(connection.label)}</strong>
+                              <Badge
+                                variant={
+                                  text(connection.status).startsWith("ready_")
+                                    ? "success"
+                                    : "muted"
+                                }
+                              >
+                                {text(connection.status)}
+                              </Badge>
+                            </div>
+                          ))}
+                          {selectedHostConnections.length === 0 ? (
+                            <p>No Codex connections registered yet.</p>
+                          ) : null}
+                        </div>
+                      </>
+                    ) : null}
+                    {activeOnboardingStep === 5 ? (
+                      <>
+                        <h3>Import a repository</h3>
+                        <p>
+                          Register the GitHub remote and persistent host paths.
+                        </p>
+                        <Link className="doc-link" href="/setup">
+                          Continue to repository setup
+                        </Link>
+                      </>
+                    ) : null}
+                    {activeOnboardingStep === 6 ? (
+                      <>
+                        <h3>Create the first task</h3>
+                        <p>
+                          Give Codex a focused change and follow its validation
+                          and pull request evidence below.
+                        </p>
+                        <Link className="doc-link" href="/agent">
+                          Continue to task setup
+                        </Link>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+              </Card>
+            ) : null}
+
+            {activePage === "dashboard" ? (
+              <section
+                className="metric-grid route-view view-dashboard"
+                aria-label="System summary"
+              >
+                <Metric
+                  label="Active tasks"
+                  value={activeTasks.length}
+                  detail="Tasks currently assigned, running, validating, pushing, or opening a PR."
+                />
+                <Metric
+                  label="Hosts online"
+                  value={`${onlineHosts.length} / ${data.hosts.length}`}
+                  detail="Enrolled host agents connected through authenticated WSS."
+                />
+                <Metric
+                  label="Ready capacity"
+                  value={data.capacity.length}
+                  detail="Capacity sources reported by the control plane."
+                />
+                <Metric
+                  label="Review queue"
+                  value={openPrTasks.length}
+                  detail="Tasks waiting for owner review after draft PR creation."
+                />
+              </section>
+            ) : null}
+
+            {activePage === "agent" ? (
+              <Card className="execution-studio route-view view-agent">
+                <div className="section-heading execution-heading">
+                  <div>
+                    <CardLabel>Agent console</CardLabel>
+                    <h2>Prompt and live execution</h2>
+                  </div>
+                  <Badge
+                    className="stream-badge"
+                    variant={streamState === "live" ? "success" : "muted"}
+                  >
+                    <Radio aria-hidden="true" />
+                    {streamState}
+                  </Badge>
+                </div>
+                <div className="execution-grid">
+                  <section className="prompt-composer">
+                    <label className="field">
+                      <span>Workspace</span>
+                      <select
+                        value={selectedWorkspaceId}
                         onChange={(event) =>
                           setTaskForm({
                             ...taskForm,
-                            startImmediately: event.target.checked,
+                            workspaceId: event.target.value,
                           })
                         }
-                      />
-                      Start immediately
-                    </label>
-                    <Button
-                      disabled={
-                        !selectedWorkspaceId ||
-                        !taskForm.title ||
-                        !taskForm.prompt
-                      }
-                      onClick={() => void createTask()}
-                      variant="primary"
-                    >
-                      <Play aria-hidden="true" />
-                      Run task
-                    </Button>
-                  </div>
-                </section>
-
-                <section
-                  aria-live="polite"
-                  className="live-execution"
-                  aria-label="Live agent activity"
-                >
-                  {focusedTask ? (
-                    <>
-                      <div className="focused-task-header">
-                        <div>
-                          <span className="activity-kicker">Focused task</span>
-                          <h3>{text(focusedTask.title)}</h3>
-                          <p>
-                            {text(focusedTask.workspace_name)} ·{" "}
-                            {text(
-                              focusedTask.assigned_host_id,
-                              "Awaiting host",
-                            )}
-                          </p>
-                        </div>
-                        <Badge
-                          variant={
-                            activeTasks.some(
-                              (task) => text(task.id) === text(focusedTask.id),
-                            )
-                              ? "success"
-                              : "muted"
-                          }
-                        >
-                          {text(focusedTask.status)}
-                        </Badge>
-                      </div>
-                      <div className="current-activity">
-                        <Bot aria-hidden="true" />
-                        <div>
-                          <span>Agent is currently</span>
-                          <strong>
-                            {latestFocusedEvent
-                              ? eventSummary(latestFocusedEvent)
-                              : text(focusedTask.status).replaceAll("_", " ")}
-                          </strong>
-                        </div>
-                      </div>
-                      <div className="row-actions task-actions">
-                        {["queued", "blocked"].includes(
-                          text(focusedTask.status),
-                        ) ? (
-                          <Button
-                            onClick={() =>
-                              void runTaskAction(text(focusedTask.id), "start")
-                            }
-                          >
-                            <Play aria-hidden="true" />
-                            Start
-                          </Button>
-                        ) : null}
-                        {["failed", "cancelled"].includes(
-                          text(focusedTask.status),
-                        ) ? (
-                          <Button
-                            onClick={() =>
-                              void runTaskAction(text(focusedTask.id), "retry")
-                            }
-                          >
-                            <Play aria-hidden="true" />
-                            Retry
-                          </Button>
-                        ) : null}
-                        {activeTasks.some(
-                          (task) => text(task.id) === text(focusedTask.id),
-                        ) ? (
-                          <Button
-                            onClick={() =>
-                              void runTaskAction(text(focusedTask.id), "cancel")
-                            }
-                          >
-                            <Unplug aria-hidden="true" />
-                            Cancel
-                          </Button>
-                        ) : null}
-                      </div>
-                      <div className="activity-feed">
-                        {focusedTaskEvents
-                          .slice(-12)
-                          .reverse()
-                          .map((event, index) => (
-                            <div className="activity-item" key={text(event.id)}>
-                              <span
-                                className={
-                                  index === 0
-                                    ? "activity-marker active"
-                                    : "activity-marker"
-                                }
-                              />
-                              <div>
-                                <strong>{eventSummary(event)}</strong>
-                                <span>
-                                  {text(event.type)} ·{" "}
-                                  {formatTimestamp(event.occurred_at)}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        {focusedTaskEvents.length === 0 ? (
-                          <p className="empty">
-                            Activity will appear here when the host starts this
-                            task.
-                          </p>
-                        ) : null}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="execution-empty">
-                      <Bot aria-hidden="true" />
-                      <p>Create a task to follow the agent in real time.</p>
-                    </div>
-                  )}
-                </section>
-              </div>
-            </Card>
-
-            <section className="content-grid route-view view-tasks view-hosts split-route-grid">
-              <Card className="task-panel view-tasks-only">
-                <div className="section-heading">
-                  <div>
-                    <CardLabel>Queue</CardLabel>
-                    <h2>Task execution</h2>
-                  </div>
-                  <Badge>{streamState}</Badge>
-                </div>
-                <div className="table">
-                  <div className="table-row table-head">
-                    <span>Task</span>
-                    <span>Status</span>
-                    <span>Workspace</span>
-                    <span>Host</span>
-                    <span>Review</span>
-                  </div>
-                  {data.tasks.map((task) => (
-                    <div className="table-row" key={text(task.id)}>
-                      <span>
-                        <button
-                          className="task-focus"
-                          onClick={() => setFocusedTaskId(text(task.id))}
-                          type="button"
-                        >
-                          {text(task.title)}
-                        </button>
-                      </span>
-                      <span>
-                        <Badge variant="muted">{text(task.status)}</Badge>
-                      </span>
-                      <span>{text(task.workspace_name)}</span>
-                      <span>{text(task.assigned_host_id)}</span>
-                      <span>
-                        <button
-                          className="link-button"
-                          onClick={() => void loadTaskReview(text(task.id))}
-                          type="button"
-                        >
-                          Review
-                        </button>
-                      </span>
-                    </div>
-                  ))}
-                  {data.tasks.length === 0 ? (
-                    <p className="empty">No tasks yet.</p>
-                  ) : null}
-                </div>
-              </Card>
-
-              <Card as="aside" className="side-panel view-hosts-only">
-                <div className="section-heading">
-                  <div>
-                    <CardLabel>Hosts</CardLabel>
-                    <h2>Execution plane</h2>
-                  </div>
-                </div>
-                <dl className="detail-list">
-                  {data.hosts.map((host) => (
-                    <div key={text(host.id)}>
-                      <dt>{text(host.name)}</dt>
-                      <dd>
-                        {text(host.status)} · {numberValue(host.active_leases)}{" "}
-                        active leases
-                      </dd>
-                    </div>
-                  ))}
-                  {data.hosts.length === 0 ? (
-                    <div>
-                      <dt>No hosts</dt>
-                      <dd>
-                        Create an enrollment token from the API to connect a
-                        host.
-                      </dd>
-                    </div>
-                  ) : null}
-                </dl>
-              </Card>
-            </section>
-
-            <Card className="plan-panel route-view view-plans">
-              <div className="section-heading">
-                <div>
-                  <CardLabel>Manager</CardLabel>
-                  <h2>Plan parallel agent work</h2>
-                </div>
-                <Button onClick={() => void seedAgentProfiles()}>
-                  Seed profiles
-                </Button>
-              </div>
-              <div className="plan-grid">
-                <div className="plan-form">
-                  <Textarea
-                    label="Goal"
-                    value={planForm.goal}
-                    onChange={(event) =>
-                      setPlanForm({ ...planForm, goal: event.target.value })
-                    }
-                  />
-                  <div className="two-col">
-                    <Input
-                      label="Frontend ownership"
-                      value={planForm.frontendOwnership}
-                      onChange={(event) =>
-                        setPlanForm({
-                          ...planForm,
-                          frontendOwnership: event.target.value,
-                        })
-                      }
-                    />
-                    <Input
-                      label="Backend ownership"
-                      value={planForm.backendOwnership}
-                      onChange={(event) =>
-                        setPlanForm({
-                          ...planForm,
-                          backendOwnership: event.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <label className="check-field">
-                    <input
-                      checked={planForm.startImmediately}
-                      type="checkbox"
-                      onChange={(event) =>
-                        setPlanForm({
-                          ...planForm,
-                          startImmediately: event.target.checked,
-                        })
-                      }
-                    />
-                    Queue approved plan immediately
-                  </label>
-                  <div className="row-actions">
-                    <Button
-                      disabled={!selectedWorkspaceId || !planForm.goal}
-                      onClick={() => void previewManagerPlan()}
-                    >
-                      Preview plan
-                    </Button>
-                    <Button
-                      disabled={!managerPlan}
-                      onClick={() => void approveManagerPlan()}
-                      variant="primary"
-                    >
-                      Approve plan
-                    </Button>
-                  </div>
-                </div>
-                <div className="stack-list">
-                  {managerPlan?.tasks.map((task, index) => (
-                    <div
-                      className="list-item"
-                      key={`${task.role}-${task.title}`}
-                    >
-                      <div>
-                        <strong>{task.title}</strong>
-                        <span>
-                          {task.role} · owns{" "}
-                          {task.ownershipClaims
-                            .map((claim) => claim.pattern)
-                            .join(", ") || "read-only review"}
-                        </span>
-                        <span>
-                          Depends on{" "}
-                          {task.dependsOnIndexes.length > 0
-                            ? task.dependsOnIndexes
-                                .map((dependency) => `#${dependency + 1}`)
-                                .join(", ")
-                            : "no tasks"}
-                        </span>
-                      </div>
-                      <Badge
-                        variant={task.mayRunInParallel ? "success" : "muted"}
                       >
-                        #{index + 1}
-                      </Badge>
-                    </div>
-                  )) ?? (
-                    <p className="empty">Preview a plan to inspect tasks.</p>
-                  )}
-                </div>
-              </div>
-            </Card>
-
-            <section className="form-grid workspace-settings-grid route-view view-setup view-settings split-route-grid">
-              <Card className="form-card view-setup-only">
-                <CardLabel>Workspace</CardLabel>
-                <h2>Create workspace</h2>
-                <Input
-                  label="Name"
-                  value={workspaceForm.name}
-                  onChange={(event) =>
-                    setWorkspaceForm({
-                      ...workspaceForm,
-                      name: event.target.value,
-                    })
-                  }
-                />
-                <div className="two-col">
-                  <Input
-                    label="GitHub owner"
-                    value={workspaceForm.owner}
-                    onChange={(event) =>
-                      setWorkspaceForm({
-                        ...workspaceForm,
-                        owner: event.target.value,
-                      })
-                    }
-                  />
-                  <Input
-                    label="Repository"
-                    value={workspaceForm.repo}
-                    onChange={(event) =>
-                      setWorkspaceForm({
-                        ...workspaceForm,
-                        repo: event.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <Input
-                  label="Remote URL"
-                  value={workspaceForm.remoteUrl}
-                  onChange={(event) =>
-                    setWorkspaceForm({
-                      ...workspaceForm,
-                      remoteUrl: event.target.value,
-                    })
-                  }
-                />
-                <Input
-                  label="Project path"
-                  value={workspaceForm.projectPath}
-                  onChange={(event) =>
-                    setWorkspaceForm({
-                      ...workspaceForm,
-                      projectPath: event.target.value,
-                    })
-                  }
-                />
-                <Input
-                  label="Worktree root"
-                  value={workspaceForm.worktreeRoot}
-                  onChange={(event) =>
-                    setWorkspaceForm({
-                      ...workspaceForm,
-                      worktreeRoot: event.target.value,
-                    })
-                  }
-                />
-                <Button
-                  onClick={() => void createWorkspace()}
-                  variant="primary"
-                >
-                  Create workspace
-                </Button>
-              </Card>
-
-              <Card className="account-settings view-settings-only">
-                <div className="section-heading">
-                  <div>
-                    <CardLabel>Settings</CardLabel>
-                    <h2>Connected Codex accounts</h2>
-                  </div>
-                  <Badge>{data.codexConnections.length}</Badge>
-                </div>
-                <div className="settings-content">
-                  <section className="account-form">
-                    <div className="two-col">
-                      <label className="field">
-                        <span>Execution host</span>
-                        <select
-                          value={connectionForm.hostId}
-                          onChange={(event) =>
-                            setConnectionForm({
-                              ...connectionForm,
-                              hostId: event.target.value,
-                            })
-                          }
-                        >
-                          <option value="">Select host</option>
-                          {data.hosts.map((host) => (
-                            <option
-                              disabled={text(host.status) !== "online"}
-                              key={text(host.id)}
-                              value={text(host.id)}
-                            >
-                              {text(host.name)} ({text(host.status)})
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="field">
-                        <span>Authentication</span>
-                        <select
-                          value={connectionForm.authMode}
-                          onChange={(event) =>
-                            setConnectionForm({
-                              ...connectionForm,
-                              authMode: event.target.value,
-                            })
-                          }
-                        >
-                          <option value="chatgpt">ChatGPT account</option>
-                          <option value="api_key">API key</option>
-                        </select>
-                      </label>
-                    </div>
-                    <div className="two-col">
-                      <Input
-                        label="Connection label"
-                        value={connectionForm.label}
-                        onChange={(event) =>
-                          setConnectionForm({
-                            ...connectionForm,
-                            label: event.target.value,
-                          })
-                        }
-                      />
-                      <Input
-                        label="Credential slot"
-                        value={connectionForm.credentialSlotId}
-                        onChange={(event) =>
-                          setConnectionForm({
-                            ...connectionForm,
-                            credentialSlotId: event.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <Button
-                      disabled={
-                        !connectionForm.hostId ||
-                        !connectionForm.label ||
-                        !connectionForm.credentialSlotId
+                        {data.workspaces.map((workspace) => (
+                          <option
+                            value={text(workspace.id)}
+                            key={text(workspace.id)}
+                          >
+                            {text(workspace.name)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <Input
+                      label="Task title"
+                      placeholder="Describe the outcome"
+                      value={taskForm.title}
+                      onChange={(event) =>
+                        setTaskForm({ ...taskForm, title: event.target.value })
                       }
-                      onClick={() => void setupCodexConnection()}
-                      variant="primary"
-                    >
-                      <Plus aria-hidden="true" />
-                      Add account
-                    </Button>
+                    />
+                    <Textarea
+                      className="agent-prompt"
+                      label="Prompt"
+                      placeholder="Tell the agent what to build, change, or investigate..."
+                      value={taskForm.prompt}
+                      onChange={(event) =>
+                        setTaskForm({ ...taskForm, prompt: event.target.value })
+                      }
+                    />
+                    <div className="composer-actions">
+                      <label className="check-field">
+                        <input
+                          checked={taskForm.startImmediately}
+                          type="checkbox"
+                          onChange={(event) =>
+                            setTaskForm({
+                              ...taskForm,
+                              startImmediately: event.target.checked,
+                            })
+                          }
+                        />
+                        Start immediately
+                      </label>
+                      <Button
+                        disabled={
+                          !selectedWorkspaceId ||
+                          !taskForm.title ||
+                          !taskForm.prompt
+                        }
+                        onClick={() => void createTask()}
+                        variant="primary"
+                      >
+                        <Play aria-hidden="true" />
+                        Run task
+                      </Button>
+                    </div>
                   </section>
 
-                  <section className="account-list" aria-label="Codex accounts">
-                    {data.codexConnections.map((connection) => (
-                      <div className="account-row" key={text(connection.id)}>
-                        <div className="account-identity">
-                          <span className="account-icon">
-                            <Bot aria-hidden="true" />
-                          </span>
+                  <section
+                    aria-live="polite"
+                    className="live-execution"
+                    aria-label="Live agent activity"
+                  >
+                    {focusedTask ? (
+                      <>
+                        <div className="focused-task-header">
                           <div>
-                            <strong>{text(connection.label)}</strong>
-                            <span>
-                              {text(
-                                hostsById.get(text(connection.host_id))?.name,
-                                "Unknown host",
-                              )}
-                              {" · "}
-                              {text(
-                                hostsById.get(text(connection.host_id))?.status,
-                                "unavailable",
-                              )}
+                            <span className="activity-kicker">
+                              Focused task
                             </span>
+                            <h3>{text(focusedTask.title)}</h3>
+                            <p>
+                              {text(focusedTask.workspace_name)} ·{" "}
+                              {text(
+                                focusedTask.assigned_host_id,
+                                "Awaiting host",
+                              )}
+                            </p>
                           </div>
-                        </div>
-                        <div className="account-meta">
-                          <span>
-                            {text(connection.auth_mode).replaceAll("_", " ")}
-                          </span>
-                          <span>
-                            Slot {text(connection.credential_slot_id)}
-                          </span>
-                        </div>
-                        <Badge
-                          variant={
-                            isReadyConnection(connection) ? "success" : "muted"
-                          }
-                        >
-                          {text(connection.status).replaceAll("_", " ")}
-                        </Badge>
-                        <div className="account-actions">
-                          <Button
-                            disabled={
-                              Boolean(connectionAction) ||
-                              text(
-                                hostsById.get(text(connection.host_id))?.status,
-                              ) !== "online"
-                            }
-                            title={
-                              text(
-                                hostsById.get(text(connection.host_id))?.status,
-                              ) === "online"
-                                ? undefined
-                                : "The assigned execution host is offline"
-                            }
-                            onClick={() =>
-                              void manageCodexConnection(connection, "connect")
+                          <Badge
+                            variant={
+                              activeTasks.some(
+                                (task) =>
+                                  text(task.id) === text(focusedTask.id),
+                              )
+                                ? "success"
+                                : "muted"
                             }
                           >
-                            <Play aria-hidden="true" />
-                            {connectionAction ===
-                            `${text(connection.id)}:connect`
-                              ? "Connecting..."
-                              : isReadyConnection(connection)
-                                ? "Reconnect"
-                                : "Connect"}
-                          </Button>
-                          {text(connection.status) !== "disabled" ? (
+                            {text(focusedTask.status)}
+                          </Badge>
+                        </div>
+                        <div className="current-activity">
+                          <Bot aria-hidden="true" />
+                          <div>
+                            <span>Agent is currently</span>
+                            <strong>
+                              {latestFocusedEvent
+                                ? eventSummary(latestFocusedEvent)
+                                : text(focusedTask.status).replaceAll("_", " ")}
+                            </strong>
+                          </div>
+                        </div>
+                        <div className="row-actions task-actions">
+                          {["queued", "blocked"].includes(
+                            text(focusedTask.status),
+                          ) ? (
                             <Button
-                              disabled={Boolean(connectionAction)}
                               onClick={() =>
-                                void manageCodexConnection(
-                                  connection,
-                                  "disconnect",
+                                void runTaskAction(
+                                  text(focusedTask.id),
+                                  "start",
+                                )
+                              }
+                            >
+                              <Play aria-hidden="true" />
+                              Start
+                            </Button>
+                          ) : null}
+                          {["failed", "cancelled"].includes(
+                            text(focusedTask.status),
+                          ) ? (
+                            <Button
+                              onClick={() =>
+                                void runTaskAction(
+                                  text(focusedTask.id),
+                                  "retry",
+                                )
+                              }
+                            >
+                              <Play aria-hidden="true" />
+                              Retry
+                            </Button>
+                          ) : null}
+                          {activeTasks.some(
+                            (task) => text(task.id) === text(focusedTask.id),
+                          ) ? (
+                            <Button
+                              onClick={() =>
+                                void runTaskAction(
+                                  text(focusedTask.id),
+                                  "cancel",
                                 )
                               }
                             >
                               <Unplug aria-hidden="true" />
-                              {connectionAction ===
-                              `${text(connection.id)}:disconnect`
-                                ? "Disconnecting..."
-                                : "Disconnect"}
+                              Cancel
                             </Button>
                           ) : null}
-                          <Button
-                            disabled={Boolean(connectionAction)}
-                            onClick={() =>
-                              void manageCodexConnection(connection, "remove")
-                            }
-                            title="Remove account"
-                          >
-                            <Trash2 aria-hidden="true" />
-                            Remove account
-                          </Button>
                         </div>
-                      </div>
-                    ))}
-                    {data.codexConnections.length === 0 ? (
+                        <div className="activity-feed">
+                          {focusedTaskEvents
+                            .slice(-12)
+                            .reverse()
+                            .map((event, index) => (
+                              <div
+                                className="activity-item"
+                                key={text(event.id)}
+                              >
+                                <span
+                                  className={
+                                    index === 0
+                                      ? "activity-marker active"
+                                      : "activity-marker"
+                                  }
+                                />
+                                <div>
+                                  <strong>{eventSummary(event)}</strong>
+                                  <span>
+                                    {text(event.type)} ·{" "}
+                                    {formatTimestamp(event.occurred_at)}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          {focusedTaskEvents.length === 0 ? (
+                            <p className="empty">
+                              Activity will appear here when the host starts
+                              this task.
+                            </p>
+                          ) : null}
+                        </div>
+                      </>
+                    ) : (
                       <div className="execution-empty">
                         <Bot aria-hidden="true" />
-                        <p>No Codex accounts connected yet.</p>
+                        <p>Create a task to follow the agent in real time.</p>
                       </div>
-                    ) : null}
+                    )}
                   </section>
                 </div>
-                {codexLoginCommand ? (
-                  <div className="login-command">
-                    <span>Run on the selected execution host</span>
-                    <code className="command-block">{codexLoginCommand}</code>
-                  </div>
-                ) : null}
               </Card>
-            </section>
+            ) : null}
 
-            <section className="content-grid lower-grid route-view view-tasks">
-              <Card className="task-panel">
-                <div className="section-heading">
-                  <div>
-                    <CardLabel>Review</CardLabel>
-                    <h2>Merge evidence</h2>
-                  </div>
-                  <Badge variant={taskReview ? "success" : "muted"}>
-                    {taskReview ? text(selectedTaskId) : "Select task"}
-                  </Badge>
-                </div>
-                {taskReview ? (
-                  <div className="review-grid">
-                    <ReviewBlock
-                      title="Completion report"
-                      items={reportItems(taskReview.report as JsonRecord)}
-                    />
-                    <ReviewBlock
-                      title="Changed files"
-                      items={stringArray(
-                        (taskReview.report as JsonRecord | undefined)
-                          ?.changedFiles,
-                      )}
-                    />
-                    <ReviewBlock
-                      title="Command output"
-                      items={
-                        (taskReview.commands as JsonRecord[] | undefined)?.map(
-                          (command) =>
-                            `${text(command.command)} · ${text(command.status)}${command.exitCode === null || command.exitCode === undefined ? "" : ` · exit ${command.exitCode}`}`,
-                        ) ?? []
-                      }
-                    />
-                    <ReviewBlock
-                      title="Pull request checks"
-                      items={
-                        (taskReview.checks as JsonRecord[] | undefined)?.map(
-                          (check) =>
-                            `${text(check.name)} · ${text(check.status)} · ${text(check.conclusion)}`,
-                        ) ?? []
-                      }
-                    />
-                  </div>
-                ) : (
-                  <p className="empty">
-                    Choose Review on a task row to load merge evidence.
-                  </p>
-                )}
-              </Card>
-
-              <Card as="aside" className="side-panel">
-                <div className="section-heading">
-                  <div>
-                    <CardLabel>Validation</CardLabel>
-                    <h2>Workspace profile</h2>
-                  </div>
-                </div>
-                <Textarea
-                  label="Validation JSON"
-                  value={validationProfileText}
-                  onChange={(event) =>
-                    setValidationProfileText(event.target.value)
-                  }
-                />
-                <Button
-                  disabled={!selectedWorkspaceId}
-                  onClick={() => void saveValidationProfile()}
-                  variant="primary"
-                >
-                  Save validation
-                </Button>
-              </Card>
-            </section>
-
-            <section className="content-grid lower-grid route-view view-approvals view-events split-route-grid">
-              <Card className="task-panel view-approvals-only">
-                <div className="section-heading">
-                  <div>
-                    <CardLabel>Approvals</CardLabel>
-                    <h2>Pending decisions</h2>
-                  </div>
-                  <Badge>{pendingApprovals.length}</Badge>
-                </div>
-                <div className="stack-list">
-                  {pendingApprovals.map((approval) => (
-                    <div className="list-item" key={text(approval.id)}>
+            {activePage === "tasks" || activePage === "hosts" ? (
+              <section className="content-grid route-view view-tasks view-hosts split-route-grid">
+                {activePage === "tasks" ? (
+                  <Card className="task-panel view-tasks-only">
+                    <div className="section-heading">
                       <div>
-                        <strong>
-                          {text(approval.task_title, "Task approval")}
-                        </strong>
-                        <span>
-                          {text(
-                            approval.requested_action,
-                            text(approval.type, "approval.requested"),
-                          )}
-                        </span>
+                        <CardLabel>Queue</CardLabel>
+                        <h2>Task execution</h2>
                       </div>
-                      <div className="row-actions">
-                        <Button
-                          onClick={() =>
-                            void decideApproval(approval.id, "approve_once")
-                          }
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          onClick={() =>
-                            void decideApproval(approval.id, "decline")
-                          }
-                        >
-                          Decline
-                        </Button>
+                      <Badge>{streamState}</Badge>
+                    </div>
+                    <div className="table">
+                      <div className="table-row table-head">
+                        <span>Task</span>
+                        <span>Status</span>
+                        <span>Workspace</span>
+                        <span>Host</span>
+                        <span>Review</span>
+                      </div>
+                      {data.tasks.map((task) => (
+                        <div className="table-row" key={text(task.id)}>
+                          <span>
+                            <button
+                              className="task-focus"
+                              onClick={() => setFocusedTaskId(text(task.id))}
+                              type="button"
+                            >
+                              {text(task.title)}
+                            </button>
+                          </span>
+                          <span>
+                            <Badge variant="muted">{text(task.status)}</Badge>
+                          </span>
+                          <span>{text(task.workspace_name)}</span>
+                          <span>{text(task.assigned_host_id)}</span>
+                          <span>
+                            <button
+                              className="link-button"
+                              onClick={() => void loadTaskReview(text(task.id))}
+                              type="button"
+                            >
+                              Review
+                            </button>
+                          </span>
+                        </div>
+                      ))}
+                      {data.tasks.length === 0 ? (
+                        <p className="empty">No tasks yet.</p>
+                      ) : null}
+                    </div>
+                  </Card>
+                ) : null}
+
+                {activePage === "hosts" ? (
+                  <Card as="aside" className="side-panel view-hosts-only">
+                    <div className="section-heading">
+                      <div>
+                        <CardLabel>Hosts</CardLabel>
+                        <h2>Execution plane</h2>
                       </div>
                     </div>
-                  ))}
-                  {pendingApprovals.length === 0 ? (
-                    <p className="empty">No pending approvals.</p>
-                  ) : null}
-                </div>
-              </Card>
+                    <dl className="detail-list">
+                      {data.hosts.map((host) => (
+                        <div key={text(host.id)}>
+                          <dt>{text(host.name)}</dt>
+                          <dd>
+                            {text(host.status)} ·{" "}
+                            {numberValue(host.active_leases)} active leases
+                          </dd>
+                        </div>
+                      ))}
+                      {data.hosts.length === 0 ? (
+                        <div>
+                          <dt>No hosts</dt>
+                          <dd>
+                            Create an enrollment token from the API to connect a
+                            host.
+                          </dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                  </Card>
+                ) : null}
+              </section>
+            ) : null}
 
-              <Card as="aside" className="side-panel view-events-only">
+            {activePage === "plans" ? (
+              <Card className="plan-panel route-view view-plans">
                 <div className="section-heading">
                   <div>
-                    <CardLabel>Events</CardLabel>
-                    <h2>Recent activity</h2>
+                    <CardLabel>Manager</CardLabel>
+                    <h2>Plan parallel agent work</h2>
+                  </div>
+                  <Button onClick={() => void seedAgentProfiles()}>
+                    Seed profiles
+                  </Button>
+                </div>
+                <div className="plan-grid">
+                  <div className="plan-form">
+                    <Textarea
+                      label="Goal"
+                      value={planForm.goal}
+                      onChange={(event) =>
+                        setPlanForm({ ...planForm, goal: event.target.value })
+                      }
+                    />
+                    <div className="two-col">
+                      <Input
+                        label="Frontend ownership"
+                        value={planForm.frontendOwnership}
+                        onChange={(event) =>
+                          setPlanForm({
+                            ...planForm,
+                            frontendOwnership: event.target.value,
+                          })
+                        }
+                      />
+                      <Input
+                        label="Backend ownership"
+                        value={planForm.backendOwnership}
+                        onChange={(event) =>
+                          setPlanForm({
+                            ...planForm,
+                            backendOwnership: event.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <label className="check-field">
+                      <input
+                        checked={planForm.startImmediately}
+                        type="checkbox"
+                        onChange={(event) =>
+                          setPlanForm({
+                            ...planForm,
+                            startImmediately: event.target.checked,
+                          })
+                        }
+                      />
+                      Queue approved plan immediately
+                    </label>
+                    <div className="row-actions">
+                      <Button
+                        disabled={!selectedWorkspaceId || !planForm.goal}
+                        onClick={() => void previewManagerPlan()}
+                      >
+                        Preview plan
+                      </Button>
+                      <Button
+                        disabled={!managerPlan}
+                        onClick={() => void approveManagerPlan()}
+                        variant="primary"
+                      >
+                        Approve plan
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="stack-list">
+                    {managerPlan?.tasks.map((task, index) => (
+                      <div
+                        className="list-item"
+                        key={`${task.role}-${task.title}`}
+                      >
+                        <div>
+                          <strong>{task.title}</strong>
+                          <span>
+                            {task.role} · owns{" "}
+                            {task.ownershipClaims
+                              .map((claim) => claim.pattern)
+                              .join(", ") || "read-only review"}
+                          </span>
+                          <span>
+                            Depends on{" "}
+                            {task.dependsOnIndexes.length > 0
+                              ? task.dependsOnIndexes
+                                  .map((dependency) => `#${dependency + 1}`)
+                                  .join(", ")
+                              : "no tasks"}
+                          </span>
+                        </div>
+                        <Badge
+                          variant={task.mayRunInParallel ? "success" : "muted"}
+                        >
+                          #{index + 1}
+                        </Badge>
+                      </div>
+                    )) ?? (
+                      <p className="empty">Preview a plan to inspect tasks.</p>
+                    )}
                   </div>
                 </div>
-                <div className="stack-list compact">
-                  {data.events
-                    .slice(-8)
-                    .reverse()
-                    .map((event) => (
-                      <div className="list-item" key={text(event.id)}>
-                        <strong>{text(event.type)}</strong>
-                        <span>
-                          #{numberValue(event.sequence)} ·{" "}
-                          {text(event.occurred_at)}
-                        </span>
-                      </div>
-                    ))}
-                  {data.events.length === 0 ? (
-                    <p className="empty">No events yet.</p>
-                  ) : null}
-                </div>
               </Card>
-            </section>
+            ) : null}
+
+            {activePage === "setup" || activePage === "settings" ? (
+              <section className="form-grid workspace-settings-grid route-view view-setup view-settings split-route-grid">
+                {activePage === "setup" && !setupComplete ? (
+                  <Card className="form-card view-setup-only">
+                    <CardLabel>Workspace</CardLabel>
+                    <h2>Create workspace</h2>
+                    <Input
+                      label="Name"
+                      value={workspaceForm.name}
+                      onChange={(event) =>
+                        setWorkspaceForm({
+                          ...workspaceForm,
+                          name: event.target.value,
+                        })
+                      }
+                    />
+                    <div className="two-col">
+                      <Input
+                        label="GitHub owner"
+                        value={workspaceForm.owner}
+                        onChange={(event) =>
+                          setWorkspaceForm({
+                            ...workspaceForm,
+                            owner: event.target.value,
+                          })
+                        }
+                      />
+                      <Input
+                        label="Repository"
+                        value={workspaceForm.repo}
+                        onChange={(event) =>
+                          setWorkspaceForm({
+                            ...workspaceForm,
+                            repo: event.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <Input
+                      label="Remote URL"
+                      value={workspaceForm.remoteUrl}
+                      onChange={(event) =>
+                        setWorkspaceForm({
+                          ...workspaceForm,
+                          remoteUrl: event.target.value,
+                        })
+                      }
+                    />
+                    <Input
+                      label="Project path"
+                      value={workspaceForm.projectPath}
+                      onChange={(event) =>
+                        setWorkspaceForm({
+                          ...workspaceForm,
+                          projectPath: event.target.value,
+                        })
+                      }
+                    />
+                    <Input
+                      label="Worktree root"
+                      value={workspaceForm.worktreeRoot}
+                      onChange={(event) =>
+                        setWorkspaceForm({
+                          ...workspaceForm,
+                          worktreeRoot: event.target.value,
+                        })
+                      }
+                    />
+                    <Button
+                      onClick={() => void createWorkspace()}
+                      variant="primary"
+                    >
+                      Create workspace
+                    </Button>
+                  </Card>
+                ) : null}
+
+                {activePage === "settings" ? (
+                  <Card className="account-settings view-settings-only">
+                    <div className="section-heading">
+                      <div>
+                        <CardLabel>Settings</CardLabel>
+                        <h2>Connected Codex accounts</h2>
+                      </div>
+                      <Badge>{connectedCodexConnections.length}</Badge>
+                    </div>
+                    <div className="settings-content">
+                      <section className="account-form">
+                        <div className="two-col">
+                          <label className="field">
+                            <span>Execution host</span>
+                            <select
+                              value={connectionForm.hostId}
+                              onChange={(event) =>
+                                setConnectionForm({
+                                  ...connectionForm,
+                                  hostId: event.target.value,
+                                })
+                              }
+                            >
+                              <option value="">Select host</option>
+                              {data.hosts.map((host) => (
+                                <option
+                                  disabled={text(host.status) !== "online"}
+                                  key={text(host.id)}
+                                  value={text(host.id)}
+                                >
+                                  {text(host.name)} ({text(host.status)})
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <div className="field">
+                            <span>Authentication</span>
+                            <div className="readonly-value">
+                              ChatGPT account
+                            </div>
+                          </div>
+                        </div>
+                        <div className="two-col">
+                          <Input
+                            label="Connection label"
+                            value={connectionForm.label}
+                            onChange={(event) =>
+                              setConnectionForm({
+                                ...connectionForm,
+                                label: event.target.value,
+                              })
+                            }
+                          />
+                          <Input
+                            label="Credential slot"
+                            value={connectionForm.credentialSlotId}
+                            onChange={(event) =>
+                              setConnectionForm({
+                                ...connectionForm,
+                                credentialSlotId: event.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <Button
+                          disabled={
+                            Boolean(connectionAction) ||
+                            !connectionForm.hostId ||
+                            !connectionForm.label ||
+                            !connectionForm.credentialSlotId
+                          }
+                          onClick={() => void setupCodexConnection()}
+                          variant="primary"
+                        >
+                          <Plus aria-hidden="true" />
+                          {connectionAction === "new:prepare"
+                            ? "Preparing command..."
+                            : "Add account"}
+                        </Button>
+                      </section>
+
+                      <section
+                        className="account-list"
+                        aria-label="Codex accounts"
+                      >
+                        {connectedCodexConnections.map((connection) => (
+                          <div
+                            className="account-row"
+                            key={text(connection.id)}
+                          >
+                            <div className="account-identity">
+                              <span className="account-icon">
+                                <Bot aria-hidden="true" />
+                              </span>
+                              <div>
+                                <strong>{text(connection.label)}</strong>
+                                <span>
+                                  {text(
+                                    hostsById.get(text(connection.host_id))
+                                      ?.name,
+                                    "Unknown host",
+                                  )}
+                                  {" · "}
+                                  {text(
+                                    hostsById.get(text(connection.host_id))
+                                      ?.status,
+                                    "unavailable",
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="account-meta">
+                              <span>
+                                {text(connection.auth_mode).replaceAll(
+                                  "_",
+                                  " ",
+                                )}
+                              </span>
+                              <span>
+                                Slot {text(connection.credential_slot_id)}
+                              </span>
+                            </div>
+                            <Badge
+                              variant={
+                                isReadyConnection(connection)
+                                  ? "success"
+                                  : "muted"
+                              }
+                            >
+                              {text(connection.status).replaceAll("_", " ")}
+                            </Badge>
+                            <div className="account-actions">
+                              <Button
+                                disabled={
+                                  Boolean(connectionAction) ||
+                                  text(
+                                    hostsById.get(text(connection.host_id))
+                                      ?.status,
+                                  ) !== "online"
+                                }
+                                title={
+                                  text(
+                                    hostsById.get(text(connection.host_id))
+                                      ?.status,
+                                  ) === "online"
+                                    ? undefined
+                                    : "The assigned execution host is offline"
+                                }
+                                onClick={() =>
+                                  void manageCodexConnection(
+                                    connection,
+                                    "connect",
+                                  )
+                                }
+                              >
+                                <Play aria-hidden="true" />
+                                {connectionAction ===
+                                `${text(connection.id)}:connect`
+                                  ? "Connecting..."
+                                  : isReadyConnection(connection)
+                                    ? "Reconnect"
+                                    : "Connect"}
+                              </Button>
+                              {text(connection.status) !== "disabled" ? (
+                                <Button
+                                  disabled={Boolean(connectionAction)}
+                                  onClick={() =>
+                                    void manageCodexConnection(
+                                      connection,
+                                      "disconnect",
+                                    )
+                                  }
+                                >
+                                  <Unplug aria-hidden="true" />
+                                  {connectionAction ===
+                                  `${text(connection.id)}:disconnect`
+                                    ? "Disconnecting..."
+                                    : "Disconnect"}
+                                </Button>
+                              ) : null}
+                              <Button
+                                disabled={Boolean(connectionAction)}
+                                onClick={() =>
+                                  void manageCodexConnection(
+                                    connection,
+                                    "remove",
+                                  )
+                                }
+                                title="Remove account"
+                              >
+                                <Trash2 aria-hidden="true" />
+                                Remove account
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        {connectedCodexConnections.length === 0 ? (
+                          <div className="execution-empty">
+                            <Bot aria-hidden="true" />
+                            <p>No Codex accounts connected yet.</p>
+                          </div>
+                        ) : null}
+                      </section>
+                    </div>
+                    {codexLoginCommand ? (
+                      <div className="login-command">
+                        <span>
+                          Run this on the selected execution host. The account
+                          is listed only after authentication succeeds.
+                        </span>
+                        <code className="command-block">
+                          {codexLoginCommand}
+                        </code>
+                      </div>
+                    ) : null}
+                  </Card>
+                ) : null}
+              </section>
+            ) : null}
+
+            {activePage === "tasks" ? (
+              <section className="content-grid lower-grid route-view view-tasks">
+                <Card className="task-panel">
+                  <div className="section-heading">
+                    <div>
+                      <CardLabel>Review</CardLabel>
+                      <h2>Merge evidence</h2>
+                    </div>
+                    <Badge variant={taskReview ? "success" : "muted"}>
+                      {taskReview ? text(selectedTaskId) : "Select task"}
+                    </Badge>
+                  </div>
+                  {taskReview ? (
+                    <div className="review-grid">
+                      <ReviewBlock
+                        title="Completion report"
+                        items={reportItems(taskReview.report as JsonRecord)}
+                      />
+                      <ReviewBlock
+                        title="Changed files"
+                        items={stringArray(
+                          (taskReview.report as JsonRecord | undefined)
+                            ?.changedFiles,
+                        )}
+                      />
+                      <ReviewBlock
+                        title="Command output"
+                        items={
+                          (
+                            taskReview.commands as JsonRecord[] | undefined
+                          )?.map(
+                            (command) =>
+                              `${text(command.command)} · ${text(command.status)}${command.exitCode === null || command.exitCode === undefined ? "" : ` · exit ${command.exitCode}`}`,
+                          ) ?? []
+                        }
+                      />
+                      <ReviewBlock
+                        title="Pull request checks"
+                        items={
+                          (taskReview.checks as JsonRecord[] | undefined)?.map(
+                            (check) =>
+                              `${text(check.name)} · ${text(check.status)} · ${text(check.conclusion)}`,
+                          ) ?? []
+                        }
+                      />
+                    </div>
+                  ) : (
+                    <p className="empty">
+                      Choose Review on a task row to load merge evidence.
+                    </p>
+                  )}
+                </Card>
+
+                <Card as="aside" className="side-panel">
+                  <div className="section-heading">
+                    <div>
+                      <CardLabel>Validation</CardLabel>
+                      <h2>Workspace profile</h2>
+                    </div>
+                  </div>
+                  <Textarea
+                    label="Validation JSON"
+                    value={validationProfileText}
+                    onChange={(event) =>
+                      setValidationProfileText(event.target.value)
+                    }
+                  />
+                  <Button
+                    disabled={!selectedWorkspaceId}
+                    onClick={() => void saveValidationProfile()}
+                    variant="primary"
+                  >
+                    Save validation
+                  </Button>
+                </Card>
+              </section>
+            ) : null}
+
+            {activePage === "approvals" || activePage === "events" ? (
+              <section className="content-grid lower-grid route-view view-approvals view-events split-route-grid">
+                {activePage === "approvals" ? (
+                  <Card className="task-panel view-approvals-only">
+                    <div className="section-heading">
+                      <div>
+                        <CardLabel>Approvals</CardLabel>
+                        <h2>Pending decisions</h2>
+                      </div>
+                      <Badge>{pendingApprovals.length}</Badge>
+                    </div>
+                    <div className="stack-list">
+                      {pendingApprovals.map((approval) => (
+                        <div className="list-item" key={text(approval.id)}>
+                          <div>
+                            <strong>
+                              {text(approval.task_title, "Task approval")}
+                            </strong>
+                            <span>
+                              {text(
+                                approval.requested_action,
+                                text(approval.type, "approval.requested"),
+                              )}
+                            </span>
+                          </div>
+                          <div className="row-actions">
+                            <Button
+                              onClick={() =>
+                                void decideApproval(approval.id, "approve_once")
+                              }
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              onClick={() =>
+                                void decideApproval(approval.id, "decline")
+                              }
+                            >
+                              Decline
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {pendingApprovals.length === 0 ? (
+                        <p className="empty">No pending approvals.</p>
+                      ) : null}
+                    </div>
+                  </Card>
+                ) : null}
+
+                {activePage === "events" ? (
+                  <Card as="aside" className="side-panel view-events-only">
+                    <div className="section-heading">
+                      <div>
+                        <CardLabel>Events</CardLabel>
+                        <h2>Recent activity</h2>
+                      </div>
+                    </div>
+                    <div className="stack-list compact">
+                      {data.events
+                        .slice(-8)
+                        .reverse()
+                        .map((event) => (
+                          <div className="list-item" key={text(event.id)}>
+                            <strong>{text(event.type)}</strong>
+                            <span>
+                              #{numberValue(event.sequence)} ·{" "}
+                              {text(event.occurred_at)}
+                            </span>
+                          </div>
+                        ))}
+                      {data.events.length === 0 ? (
+                        <p className="empty">No events yet.</p>
+                      ) : null}
+                    </div>
+                  </Card>
+                ) : null}
+              </section>
+            ) : null}
           </>
         )}
       </section>
