@@ -1076,6 +1076,38 @@ h2 {
   gap: 18px;
 }
 
+.account-subheading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.account-subheading h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.account-subheading span,
+.settings-note {
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+}
+
+.settings-note {
+  max-width: 760px;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.account-provider-section {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+
 .account-form {
   display: grid;
   gap: 12px;
@@ -1156,6 +1188,10 @@ h2 {
   display: grid;
   gap: 7px;
   margin-top: 16px;
+}
+
+.account-provider-section .login-command {
+  margin-top: 0;
 }
 
 .login-command .command-block {

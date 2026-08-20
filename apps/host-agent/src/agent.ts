@@ -1,6 +1,7 @@
 import { loginCodexConnection } from "./codex-login";
 import { loadConfig } from "./config";
 import { exchangeEnrollment } from "./enroll";
+import { loginGitHub, logoutGitHub } from "./github-login";
 import { log } from "./logger";
 import { CodexConnectionRegistry } from "./registry";
 import { HostAgentRuntime } from "./runtime";
@@ -70,6 +71,20 @@ async function main() {
       codexConnectionId: connection.codexConnectionId,
       status: connection.status,
     });
+    return;
+  }
+
+  if (command === "github-login") {
+    const status = await loginGitHub(config);
+    log("info", "GitHub account authenticated", {
+      account: status.account ?? "github.com",
+    });
+    return;
+  }
+
+  if (command === "github-logout") {
+    await logoutGitHub(config);
+    log("info", "GitHub account disconnected");
     return;
   }
 

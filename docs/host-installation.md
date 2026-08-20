@@ -81,7 +81,14 @@ sudo -u maxxy-host /usr/local/bin/maxxy-host codex-login \
 
 The command runs the official Codex login in that lane's isolated `CODEX_HOME`. After authorization succeeds, the running host reports a `ready_chatgpt` status on its next heartbeat. API-key setup reads the key from stdin and never sends it through the dashboard.
 
-Authenticate GitHub as `maxxy-host`. The current task-to-PR path uses host Git and `gh` credentials for push and draft PR creation.
+Authenticate GitHub as `maxxy-host`. The current task-to-PR path uses host Git and `gh` credentials for push and draft PR creation:
+
+```bash
+sudo -u maxxy-host /usr/local/bin/maxxy-host github-login
+sudo -u maxxy-host gh auth status
+```
+
+After browser authorization succeeds, select **Verify connection** for this host in **Settings**. Use `sudo -u maxxy-host /usr/local/bin/maxxy-host github-logout` to disconnect the account.
 
 ## Start
 

@@ -13,6 +13,8 @@ describe("evaluateSystemReadiness", () => {
         requiredHostCount: 1,
         requiredOnlineHostCount: 1,
         readyConnectionCount: 1,
+        githubReadyHostCount: 2,
+        requiredGithubReadyHostCount: 1,
       },
       { now, workerStaleAfterMs: 15_000 },
     );
@@ -25,6 +27,7 @@ describe("evaluateSystemReadiness", () => {
       worker: "ok",
       hosts: "ok",
       codex: "ok",
+      github: "ok",
     });
   });
 
@@ -37,6 +40,8 @@ describe("evaluateSystemReadiness", () => {
         requiredHostCount: 2,
         requiredOnlineHostCount: 1,
         readyConnectionCount: 1,
+        githubReadyHostCount: 2,
+        requiredGithubReadyHostCount: 2,
       },
       { now },
     );
@@ -57,6 +62,8 @@ describe("evaluateSystemReadiness", () => {
         requiredHostCount: 0,
         requiredOnlineHostCount: 0,
         readyConnectionCount: 0,
+        githubReadyHostCount: 1,
+        requiredGithubReadyHostCount: 0,
       },
       { now, workerStaleAfterMs: 15_000 },
     );
@@ -76,11 +83,35 @@ describe("evaluateSystemReadiness", () => {
         requiredHostCount: 0,
         requiredOnlineHostCount: 0,
         readyConnectionCount: 0,
+        githubReadyHostCount: 0,
+        requiredGithubReadyHostCount: 0,
       },
       { now },
     );
 
     expect(readiness.ready).toBe(false);
     expect(readiness.reasons).toContain("No fresh execution host is online.");
+  });
+
+  test("blocks when GitHub is not authenticated on a required host", () => {
+    const readiness = evaluateSystemReadiness(
+      {
+        workerLastHeartbeatAt: now,
+        enrolledHostCount: 1,
+        onlineHostCount: 1,
+        requiredHostCount: 1,
+        requiredOnlineHostCount: 1,
+        readyConnectionCount: 1,
+        githubReadyHostCount: 0,
+        requiredGithubReadyHostCount: 0,
+      },
+      { now },
+    );
+
+    expect(readiness.ready).toBe(false);
+    expect(readiness.checks.github).toBe("error");
+    expect(readiness.reasons).toContain(
+      "GitHub is not authenticated on every required execution host.",
+    );
   });
 });

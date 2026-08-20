@@ -75,6 +75,8 @@ export const hostToolStatusSchema = z.object({
   version: z.string().optional(),
   path: z.string().optional(),
   error: z.string().optional(),
+  authenticated: z.boolean().optional(),
+  account: z.string().optional(),
 });
 
 export const hostToolInventorySchema = z.object({

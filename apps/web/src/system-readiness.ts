@@ -10,6 +10,8 @@ type ReadinessSnapshot = {
   requiredHostCount: number;
   requiredOnlineHostCount: number;
   readyConnectionCount: number;
+  githubReadyHostCount: number;
+  requiredGithubReadyHostCount: number;
 };
 
 export type SystemReadiness = {
@@ -20,6 +22,7 @@ export type SystemReadiness = {
     worker: "ok" | "error";
     hosts: "ok" | "error";
     codex: "ok" | "error";
+    github: "ok" | "error";
   };
   reasons: string[];
   counts: {
@@ -28,6 +31,8 @@ export type SystemReadiness = {
     requiredHosts: number;
     requiredOnlineHosts: number;
     readyConnections: number;
+    githubReadyHosts: number;
+    requiredGithubReadyHosts: number;
   };
   lastWorkerHeartbeatAt: string | null;
   checkedAt: string;
@@ -59,6 +64,10 @@ export function evaluateSystemReadiness(
       : snapshot.onlineHostCount > 0;
   const codexReady = snapshot.readyConnectionCount > 0;
   const reasons: string[] = [];
+  const githubReady =
+    snapshot.requiredHostCount > 0
+      ? snapshot.requiredGithubReadyHostCount === snapshot.requiredHostCount
+      : snapshot.githubReadyHostCount > 0;
 
   if (!workerReady) {
     reasons.push("The scheduler worker heartbeat is missing or stale.");
@@ -73,15 +82,21 @@ export function evaluateSystemReadiness(
   if (!codexReady) {
     reasons.push("No ready Codex connection is available on an online host.");
   }
+  if (!githubReady) {
+    reasons.push(
+      "GitHub is not authenticated on every required execution host.",
+    );
+  }
 
   return {
-    ready: workerReady && hostsReady && codexReady,
+    ready: workerReady && hostsReady && codexReady && githubReady,
     checks: {
       web: "ok",
       database: "ok",
       worker: workerReady ? "ok" : "error",
       hosts: hostsReady ? "ok" : "error",
       codex: codexReady ? "ok" : "error",
+      github: githubReady ? "ok" : "error",
     },
     reasons,
     counts: {
@@ -90,6 +105,8 @@ export function evaluateSystemReadiness(
       requiredHosts: snapshot.requiredHostCount,
       requiredOnlineHosts: snapshot.requiredOnlineHostCount,
       readyConnections: snapshot.readyConnectionCount,
+      githubReadyHosts: snapshot.githubReadyHostCount,
+      requiredGithubReadyHosts: snapshot.requiredGithubReadyHostCount,
     },
     lastWorkerHeartbeatAt: workerHeartbeat?.toISOString() ?? null,
     checkedAt: now.toISOString(),
@@ -115,6 +132,8 @@ export async function readSystemReadiness(
       required_host_count: number;
       required_online_host_count: number;
       ready_connection_count: number;
+      github_ready_host_count: number;
+      required_github_ready_host_count: number;
     }[]
   >`
     with required_hosts as (
@@ -146,7 +165,18 @@ export async function readSystemReadiness(
           and connection.status in ('ready_chatgpt','ready_api_key','ready_enterprise_access_token')
           and host.status = 'online' and host.revoked_at is null
           and host.last_heartbeat_at >= now() - (${hostStaleAfterMs} || ' milliseconds')::interval
-      ) as ready_connection_count
+      ) as ready_connection_count,
+      (select count(*)::int from hosts
+        where status = 'online' and revoked_at is null
+          and last_heartbeat_at >= now() - (${hostStaleAfterMs} || ' milliseconds')::interval
+          and coalesce((tool_inventory->'gh'->>'authenticated')::boolean, false)
+      ) as github_ready_host_count,
+      (select count(*)::int from required_hosts required
+        join hosts host on host.id = required.id
+        where host.status = 'online' and host.revoked_at is null
+          and host.last_heartbeat_at >= now() - (${hostStaleAfterMs} || ' milliseconds')::interval
+          and coalesce((host.tool_inventory->'gh'->>'authenticated')::boolean, false)
+      ) as required_github_ready_host_count
   `;
 
   if (!snapshot) {
@@ -161,6 +191,10 @@ export async function readSystemReadiness(
       requiredHostCount: Number(snapshot.required_host_count),
       requiredOnlineHostCount: Number(snapshot.required_online_host_count),
       readyConnectionCount: Number(snapshot.ready_connection_count),
+      githubReadyHostCount: Number(snapshot.github_ready_host_count),
+      requiredGithubReadyHostCount: Number(
+        snapshot.required_github_ready_host_count,
+      ),
     },
     { workerStaleAfterMs },
   );

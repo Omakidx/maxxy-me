@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   type ControlPlaneApiHooks,
+  parseHostHealthInventory,
   runBestEffortConnectionHostCommand,
 } from "./control-plane-api";
 
@@ -74,5 +75,47 @@ describe("Codex connection host cleanup", () => {
         "codex.connection.remove",
       ),
     ).rejects.toThrow("active runtime lease");
+  });
+});
+
+describe("host tool verification", () => {
+  test("accepts authenticated GitHub identity from sanitized inventory", () => {
+    const inventory = parseHostHealthInventory(
+      JSON.stringify({
+        inventory: {
+          os: "linux",
+          arch: "x64",
+          hostname: "executor",
+          bun: { available: true, version: "1.3.14" },
+          codex: { available: true, version: "codex-cli 1.0.0" },
+          git: { available: true, version: "git version 2.48.0" },
+          gh: {
+            available: true,
+            version: "gh version 2.70.0",
+            authenticated: true,
+            account: "octocat",
+          },
+          projectRoot: "/srv/projects",
+          worktreeRoot: "/srv/worktrees",
+          codexAccountsDir: "/srv/codex",
+          sandbox: {
+            pathRestrictions: true,
+            perConnectionCodexHome: true,
+            commandTimeoutMs: 60000,
+            outputMaxBytes: 100000,
+          },
+        },
+      }),
+    );
+
+    expect(inventory?.gh.authenticated).toBe(true);
+    expect(inventory?.gh.account).toBe("octocat");
+  });
+
+  test("rejects malformed host command output", () => {
+    expect(parseHostHealthInventory("not-json")).toBeNull();
+    expect(
+      parseHostHealthInventory(JSON.stringify({ inventory: {} })),
+    ).toBeNull();
   });
 });

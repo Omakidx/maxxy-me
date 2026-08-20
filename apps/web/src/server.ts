@@ -724,6 +724,8 @@ async function persistHostHeartbeat(
     update hosts
     set status = ${message.status},
         protocol_version = ${message.protocolVersion},
+        tool_inventory = tool_inventory ||
+          ${JSON.stringify(sanitizeTelemetry(message.toolHealth))}::jsonb,
         max_concurrent_agents = ${message.capacity.maxConcurrentAgents},
         last_heartbeat_at = now(),
         updated_at = now()

@@ -4,12 +4,14 @@ import {
   Activity,
   Bot,
   CircleDot,
+  GitBranch,
   LayoutDashboard,
   ListTodo,
   LoaderCircle,
   Play,
   Plus,
   Radio,
+  RefreshCw,
   Server,
   Settings,
   ShieldCheck,
@@ -110,6 +112,14 @@ function record(value: unknown): JsonRecord {
 
 function isReadyConnection(connection: JsonRecord) {
   return text(connection.status).startsWith("ready_");
+}
+
+function githubToolStatus(host: JsonRecord | undefined) {
+  return record(record(host?.tool_inventory).gh);
+}
+
+function isGitHubAuthenticated(host: JsonRecord | undefined) {
+  return githubToolStatus(host).authenticated === true;
 }
 
 function connectionLoginCommand(
@@ -250,7 +260,9 @@ export default function DashboardApp({
   const [data, setData] = useState<DashboardData>(emptyData);
   const [connectionAction, setConnectionAction] = useState("");
   const [deploymentMode, setDeploymentMode] = useState<DeploymentMode>("");
-  const [githubReady, setGithubReady] = useState(false);
+  const [githubHostId, setGithubHostId] = useState("");
+  const [githubAction, setGithubAction] = useState("");
+  const [githubLoginCommand, setGithubLoginCommand] = useState("");
   const [activeOnboardingStep, setActiveOnboardingStep] = useState(0);
   const [enrollmentForm, setEnrollmentForm] = useState({
     hostName: "Primary execution host",
@@ -352,21 +364,20 @@ export default function DashboardApp({
   );
   const signedIn = state === "ready";
   const readyCodexConnections = data.codexConnections.filter(isReadyConnection);
-  const connectedCodexConnections = data.codexConnections.filter(
-    (connection) =>
-      isReadyConnection(connection) || text(connection.status) === "disabled",
-  );
+  const connectedCodexConnections = data.codexConnections;
   const hostsById = new Map(
     data.hosts.map((host) => [text(host.id), host] as const),
   );
   const selectedHostConnections = connectedCodexConnections.filter(
     (connection) => text(connection.host_id) === connectionForm.hostId,
   );
+  const githubHosts = data.hosts.filter(isGitHubAuthenticated);
+  const githubReady = githubHosts.length > 0;
   const onboardingSteps = [
     { label: "Deployment", complete: Boolean(deploymentMode) },
     { label: "Owner", complete: signedIn },
-    { label: "GitHub", complete: githubReady },
     { label: "Host", complete: onlineHosts.length > 0 },
+    { label: "GitHub", complete: githubReady },
     { label: "Codex", complete: readyCodexConnections.length > 0 },
     { label: "Repository", complete: data.workspaces.length > 0 },
     { label: "First task", complete: data.tasks.length > 0 },
@@ -457,6 +468,13 @@ export default function DashboardApp({
           ? current.hostId
           : text(onlineHost?.id, ""),
       }));
+      setGithubHostId((current) =>
+        hostRows.some(
+          (host) => text(host.id) === current && text(host.status) === "online",
+        )
+          ? current
+          : text(onlineHost?.id, ""),
+      );
     } catch (error) {
       setState("error");
       setMessage(error instanceof Error ? error.message : String(error));
@@ -580,7 +598,7 @@ export default function DashboardApp({
       const connection = record(result.connection);
       setCodexLoginCommand(connectionLoginCommand(connection, deploymentMode));
       setMessage(
-        "Login command generated. Run it on the selected host; the account will appear after authentication succeeds.",
+        "Account added as signed out. Run the generated command on the selected host to finish connecting it.",
       );
       await refresh();
     } catch (error) {
@@ -589,6 +607,52 @@ export default function DashboardApp({
       setConnectionAction("");
     }
   }
+
+  function prepareGitHubCommand(action: "login" | "logout") {
+    if (!githubHostId) {
+      setMessage(
+        "Start and select an execution host before connecting GitHub.",
+      );
+      return;
+    }
+    const launcher =
+      deploymentMode === "vps"
+        ? "sudo -u maxxy-host /usr/local/bin/maxxy-host"
+        : "./deploy/maxxy-host";
+    setGithubLoginCommand(`${launcher} github-${action}`);
+    setMessage(
+      action === "login"
+        ? "GitHub login command generated. Run it on the selected host, then verify the connection."
+        : "GitHub logout command generated. Run it on the selected host, then verify the disconnection.",
+    );
+  }
+
+  async function verifyGitHubConnection() {
+    if (!githubHostId) {
+      setMessage("Select an online execution host to verify GitHub.");
+      return;
+    }
+    setGithubAction("verify");
+    try {
+      const result = await api(
+        `/api/hosts/${encodeURIComponent(githubHostId)}/refresh-tools`,
+        { method: "POST" },
+      );
+      const host = record(result.host);
+      const github = githubToolStatus(host);
+      setMessage(
+        github.authenticated === true
+          ? `GitHub connected as ${text(github.account, "an authenticated account")}.`
+          : "GitHub is still signed out on this host. Run the generated login command and try verification again.",
+      );
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setGithubAction("");
+    }
+  }
+
   async function manageCodexConnection(
     connection: JsonRecord,
     action: "connect" | "disconnect" | "remove",
@@ -807,7 +871,6 @@ export default function DashboardApp({
     if (storedMode === "local" || storedMode === "vps") {
       setDeploymentMode(storedMode);
     }
-    setGithubReady(window.localStorage.getItem("maxxy.githubReady") === "true");
   }, []);
 
   useEffect(() => {
@@ -1172,27 +1235,23 @@ export default function DashboardApp({
                         <Badge variant="success">Public signup disabled</Badge>
                       </>
                     ) : null}
-                    {activeOnboardingStep === 2 ? (
+                    {activeOnboardingStep === 3 ? (
                       <>
-                        <h3>Authorize GitHub</h3>
+                        <h3>Connect GitHub on the host</h3>
                         <p>
-                          Install the GitHub App for the repositories you plan
-                          to import and configure its webhook secret.
+                          The execution host uses its authenticated GitHub CLI
+                          account to push branches and create draft pull
+                          requests.
                         </p>
-                        <label className="check-field">
-                          <input
-                            checked={githubReady}
-                            onChange={(event) => {
-                              setGithubReady(event.target.checked);
-                              window.localStorage.setItem(
-                                "maxxy.githubReady",
-                                String(event.target.checked),
-                              );
-                            }}
-                            type="checkbox"
-                          />
-                          GitHub App installed and webhook configured
-                        </label>
+                        {githubReady ? (
+                          <Badge variant="success">
+                            GitHub authenticated on an execution host
+                          </Badge>
+                        ) : (
+                          <Link className="doc-link" href="/settings">
+                            Connect GitHub in Settings
+                          </Link>
+                        )}
                         <a
                           className="doc-link"
                           href="https://github.com/Omakidx/maxxy-me/blob/main/docs/github-app.md"
@@ -1201,7 +1260,7 @@ export default function DashboardApp({
                         </a>
                       </>
                     ) : null}
-                    {activeOnboardingStep === 3 ? (
+                    {activeOnboardingStep === 2 ? (
                       <>
                         <h3>Enroll an execution host</h3>
                         <div className="two-col">
@@ -1443,20 +1502,26 @@ export default function DashboardApp({
                     </div>
                   </div>
                   <div className="readiness-checks">
-                    {(["database", "worker", "hosts", "codex"] as const).map(
-                      (check) => (
-                        <Badge
-                          key={check}
-                          variant={
-                            data.readiness?.checks[check] === "ok"
-                              ? "success"
-                              : "muted"
-                          }
-                        >
-                          {check}
-                        </Badge>
-                      ),
-                    )}
+                    {(
+                      [
+                        "database",
+                        "worker",
+                        "hosts",
+                        "codex",
+                        "github",
+                      ] as const
+                    ).map((check) => (
+                      <Badge
+                        key={check}
+                        variant={
+                          data.readiness?.checks[check] === "ok"
+                            ? "success"
+                            : "muted"
+                        }
+                      >
+                        {check}
+                      </Badge>
+                    ))}
                   </div>
                 </output>
                 <div className="execution-grid">
@@ -1980,12 +2045,18 @@ export default function DashboardApp({
                     <div className="section-heading">
                       <div>
                         <CardLabel>Settings</CardLabel>
-                        <h2>Connected Codex accounts</h2>
+                        <h2>Connected accounts</h2>
                       </div>
-                      <Badge>{connectedCodexConnections.length}</Badge>
+                      <Badge>
+                        {connectedCodexConnections.length + githubHosts.length}
+                      </Badge>
                     </div>
                     <div className="settings-content">
                       <section className="account-form">
+                        <div className="account-subheading">
+                          <h3>Add ChatGPT account</h3>
+                          <span>Codex execution lane</span>
+                        </div>
                         <div className="two-col">
                           <label className="field">
                             <span>Execution host</span>
@@ -2174,7 +2245,7 @@ export default function DashboardApp({
                         {connectedCodexConnections.length === 0 ? (
                           <div className="execution-empty">
                             <Bot aria-hidden="true" />
-                            <p>No Codex accounts connected yet.</p>
+                            <p>No Codex accounts have been added yet.</p>
                           </div>
                         ) : null}
                       </section>
@@ -2183,13 +2254,155 @@ export default function DashboardApp({
                       <div className="login-command">
                         <span>
                           Run this on the selected execution host. The account
-                          is listed only after authentication succeeds.
+                          remains signed out until authentication succeeds.
                         </span>
                         <code className="command-block">
                           {codexLoginCommand}
                         </code>
                       </div>
                     ) : null}
+
+                    <section className="account-provider-section">
+                      <div className="section-heading">
+                        <div>
+                          <CardLabel>GitHub</CardLabel>
+                          <h3>Pull request account</h3>
+                        </div>
+                        <Badge variant={githubReady ? "success" : "muted"}>
+                          {githubHosts.length} connected
+                        </Badge>
+                      </div>
+                      <p className="settings-note">
+                        Authentication lives on the execution host that pushes
+                        task branches and opens draft pull requests. The account
+                        must have access to every repository assigned to that
+                        host.
+                      </p>
+                      <div className="two-col">
+                        <label className="field">
+                          <span>Execution host</span>
+                          <select
+                            value={githubHostId}
+                            onChange={(event) => {
+                              setGithubHostId(event.target.value);
+                              setGithubLoginCommand("");
+                            }}
+                          >
+                            <option value="">Select host</option>
+                            {data.hosts.map((host) => (
+                              <option
+                                disabled={text(host.status) !== "online"}
+                                key={text(host.id)}
+                                value={text(host.id)}
+                              >
+                                {text(host.name)} ({text(host.status)})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="field">
+                          <span>Detected account</span>
+                          <div className="readonly-value">
+                            {isGitHubAuthenticated(hostsById.get(githubHostId))
+                              ? text(
+                                  githubToolStatus(hostsById.get(githubHostId))
+                                    .account,
+                                  "Authenticated",
+                                )
+                              : "Not connected"}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="row-actions">
+                        <Button
+                          disabled={!githubHostId || Boolean(githubAction)}
+                          onClick={() =>
+                            prepareGitHubCommand(
+                              isGitHubAuthenticated(hostsById.get(githubHostId))
+                                ? "logout"
+                                : "login",
+                            )
+                          }
+                          variant="primary"
+                        >
+                          {isGitHubAuthenticated(
+                            hostsById.get(githubHostId),
+                          ) ? (
+                            <Unplug aria-hidden="true" />
+                          ) : (
+                            <GitBranch aria-hidden="true" />
+                          )}
+                          {isGitHubAuthenticated(hostsById.get(githubHostId))
+                            ? "Disconnect GitHub"
+                            : "Connect GitHub"}
+                        </Button>
+                        <Button
+                          disabled={!githubHostId || Boolean(githubAction)}
+                          onClick={() => void verifyGitHubConnection()}
+                        >
+                          <RefreshCw
+                            aria-hidden="true"
+                            className={
+                              githubAction === "verify"
+                                ? "working-spinner"
+                                : undefined
+                            }
+                          />
+                          {githubAction === "verify"
+                            ? "Verifying..."
+                            : "Verify connection"}
+                        </Button>
+                      </div>
+                      {githubLoginCommand ? (
+                        <div className="login-command">
+                          <span>
+                            Run this command on the selected host, then select
+                            Verify connection.
+                          </span>
+                          <code className="command-block">
+                            {githubLoginCommand}
+                          </code>
+                        </div>
+                      ) : null}
+                      <div className="account-list github-account-list">
+                        {data.hosts.map((host) => {
+                          const github = githubToolStatus(host);
+                          const authenticated = github.authenticated === true;
+                          return (
+                            <div className="account-row" key={text(host.id)}>
+                              <div className="account-identity">
+                                <span className="account-icon">
+                                  <GitBranch aria-hidden="true" />
+                                </span>
+                                <div>
+                                  <strong>
+                                    {authenticated
+                                      ? text(github.account, "GitHub account")
+                                      : "GitHub not connected"}
+                                  </strong>
+                                  <span>{text(host.name)}</span>
+                                </div>
+                              </div>
+                              <div className="account-meta">
+                                <span>{text(host.status)}</span>
+                                <span>Push and draft PR delivery</span>
+                              </div>
+                              <Badge
+                                variant={authenticated ? "success" : "muted"}
+                              >
+                                {authenticated ? "connected" : "signed out"}
+                              </Badge>
+                            </div>
+                          );
+                        })}
+                        {data.hosts.length === 0 ? (
+                          <div className="execution-empty">
+                            <GitBranch aria-hidden="true" />
+                            <p>Enroll an execution host before GitHub login.</p>
+                          </div>
+                        ) : null}
+                      </div>
+                    </section>
                   </Card>
                 ) : null}
               </section>

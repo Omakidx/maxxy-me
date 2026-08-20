@@ -37,10 +37,12 @@ The endpoint verifies `X-Hub-Signature-256`, records the delivery ID for dedupli
 Authenticate as the dedicated host service account:
 
 ```bash
-sudo -u maxxy-host gh auth login
+sudo -u maxxy-host /usr/local/bin/maxxy-host github-login
 sudo -u maxxy-host gh auth status
 sudo -u maxxy-host git ls-remote https://github.com/OWNER/REPOSITORY.git HEAD
 ```
+
+After the login completes, select **Verify connection** for the host in **Settings**. The dashboard reads the authenticated account from the host agent; it does not store a GitHub token. Disconnect with `sudo -u maxxy-host /usr/local/bin/maxxy-host github-logout`.
 
 Use least privilege. The host needs repository read/write access for task branches and permission to create draft pull requests. It must not receive organization administration or branch-protection administration.
 

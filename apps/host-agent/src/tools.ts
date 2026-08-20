@@ -27,6 +27,36 @@ async function detect(binary: string, args: string[]): Promise<HostToolStatus> {
   }
 }
 
+export function parseGitHubAccount(output: string) {
+  return output.match(/account\s+([^\s(]+)/i)?.[1];
+}
+
+async function detectGitHub(binary: string): Promise<HostToolStatus> {
+  const tool = await detect(binary, ["--version"]);
+  if (!tool.available) {
+    return tool;
+  }
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      binary,
+      ["auth", "status", "--hostname", "github.com"],
+      { timeout: 5000 },
+    );
+    const account = parseGitHubAccount(`${stdout}${stderr}`);
+    return {
+      ...tool,
+      authenticated: true,
+      ...(account ? { account } : {}),
+    };
+  } catch {
+    return {
+      ...tool,
+      authenticated: false,
+      error: "GitHub CLI is not authenticated for github.com",
+    };
+  }
+}
+
 export async function collectToolInventory(
   config: HostAgentConfig,
 ): Promise<HostToolInventory> {
@@ -34,7 +64,7 @@ export async function collectToolInventory(
     detect("bun", ["--version"]),
     detect(config.CODEX_BINARY, ["--version"]),
     detect(config.GIT_BINARY, ["--version"]),
-    detect(config.GH_BINARY, ["--version"]),
+    detectGitHub(config.GH_BINARY),
   ]);
   const codex =
     detectedCodex.available && detectedCodex.version?.startsWith("codex-cli ")

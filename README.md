@@ -103,21 +103,19 @@ Do not run `bun run start:host -- enroll` from outside the checkout. The launche
 
 ### 4. Connect Codex
 
-Leave the host agent running. Open **Settings**, select **Add account**, choose the online host and authentication mode, then register the pending connection. Registration alone does not authenticate or connect the account.
+Leave the host agent running. Open **Settings**, select **Add account**, choose the online host, and register the pending ChatGPT connection. The new account remains visible as `signed_out` until its login succeeds.
 
-Copy the generated `./deploy/maxxy-host codex-login ...` command into a second terminal on that host and complete the official login flow. The account moves into the connected list only after the host verifies the credentials and reports a `ready_*` status. API-key setup reads the key from standard input; never paste a key into the dashboard.
+Copy the generated `./deploy/maxxy-host codex-login ...` command into a second terminal on that host and complete the official login flow. The account becomes usable only after the host verifies the credentials and reports a `ready_*` status. Use **Connect** to generate a fresh command for any signed-out account, or **Remove** to delete it.
 
 ### 5. Authenticate GitHub
 
-Run these commands as the same operating-system account that runs the local host agent:
+In **Settings**, select the execution host and choose **Connect GitHub**. Run the generated command as the same operating-system account that runs the host agent:
 
 ```bash
-gh auth login
-gh auth status
-git ls-remote https://github.com/OWNER/REPOSITORY.git HEAD
+./deploy/maxxy-host github-login
 ```
 
-Grant only the repository access needed to read the base branch, push task branches, and create draft pull requests. The agent does not merge pull requests.
+Complete GitHub's browser authorization, then choose **Verify connection** in Settings. The host must report an authenticated GitHub account before it can receive tasks. Use the generated `github-logout` command to disconnect it. Grant only the repository access needed to read the base branch, push task branches, and create draft pull requests. The agent does not merge pull requests.
 
 ### 6. Add a workspace
 
@@ -134,13 +132,13 @@ Use the `pwd` result as the clone path and `$HOME/maxxy-worktrees` as the worktr
 
 ### 7. Run the first task
 
-Open **Agent console**. Confirm the database, worker, hosts, and Codex readiness badges are all healthy, choose the workspace, enter a task title and prompt, then select **Run task**.
+Open **Agent console**. Confirm the database, worker, hosts, Codex, and GitHub readiness badges are all healthy, choose the workspace, enter a task title and prompt, then select **Run task**.
 
 The focused task shows agent messages and command output as they arrive. Its activity icon spins only while the agent is actively starting, running, validating, pushing, or opening a pull request. Successful work ends in a draft pull request for owner review.
 
 ## Readiness and Failure Behavior
 
-Execution fails closed. New tasks, retries, and plan approvals are blocked unless the database is reachable, the scheduler heartbeat is fresh, every host required by active or pinned workspaces is online, and a ready Codex lane exists on a fresh host. The scheduler independently rejects stale hosts.
+Execution fails closed. New tasks, retries, and plan approvals are blocked unless the database is reachable, the scheduler heartbeat is fresh, every host required by active or pinned workspaces is online, a ready Codex lane exists, and GitHub is authenticated on every required host. The scheduler independently rejects stale or GitHub-unauthenticated hosts.
 
 The dashboard and read-only diagnostics remain available during an execution outage so the owner can identify and repair the failed dependency; cancelling active work also remains available. PostgreSQL is never deliberately stopped because a host disconnects, which preserves task history and recovery evidence.
 

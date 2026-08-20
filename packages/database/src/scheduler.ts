@@ -302,6 +302,7 @@ export class SchedulerService {
             where h.status = 'online'
               and h.revoked_at is null
               and h.last_heartbeat_at >= now() - (${this.options.hostStaleAfterMs ?? 45_000} || ' milliseconds')::interval
+              and coalesce((h.tool_inventory->'gh'->>'authenticated')::boolean, false)
               and c.disabled_at is null
               and c.status in ('ready_chatgpt','ready_api_key','ready_enterprise_access_token')
               and (w.codex_pool_id is null or w.codex_pool_id = p.id)
@@ -350,6 +351,7 @@ export class SchedulerService {
         where h.status = 'online'
           and h.revoked_at is null
           and h.last_heartbeat_at >= now() - (${this.options.hostStaleAfterMs ?? 45_000} || ' milliseconds')::interval
+          and coalesce((h.tool_inventory->'gh'->>'authenticated')::boolean, false)
           and (
             select count(*)::int
             from task_leases tl

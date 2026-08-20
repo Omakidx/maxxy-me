@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type {
-  ControlApprovalDecisionMessage,
-  HostCommandName,
+import {
+  type ControlApprovalDecisionMessage,
+  type HostCommandName,
+  hostToolInventorySchema,
 } from "@maxxy/contracts";
 import {
   ControlPlaneRepository,
@@ -180,16 +181,20 @@ const approvalDecisionRequestSchema = z.object({
   decision: approvalDecisionSchema,
 });
 
+type HostCommandBridgeResult = {
+  status: string;
+  error?: string | undefined;
+  output?: string | undefined;
+  outputTruncated?: boolean | undefined;
+};
+
 export type ControlPlaneApiHooks = {
   onApprovalDecision?: (message: ControlApprovalDecisionMessage) => void;
   onHostCommand?: (
     hostId: string,
     command: HostCommandName,
     payload: Record<string, unknown>,
-  ) => Promise<{
-    status: string;
-    error?: string | undefined;
-  }>;
+  ) => Promise<HostCommandBridgeResult>;
 };
 
 export async function handleControlPlaneApi(
@@ -263,6 +268,73 @@ export async function handleControlPlaneApi(
         return true;
       }
       await recordAudit("host.revoked", auth.identity, "host", host.id);
+      sendJson(response, 200, { host });
+      return true;
+    }
+
+    const hostToolsRefreshMatch = pathname.match(
+      /^\/api\/hosts\/([^/]+)\/refresh-tools$/,
+    );
+    if (hostToolsRefreshMatch && method === "POST") {
+      const hostId = decodeURIComponent(hostToolsRefreshMatch[1] ?? "");
+      const [existing] = await requireDb().sql<{ id: string }[]>`
+        select id from hosts where id = ${hostId} and revoked_at is null
+      `;
+      if (!existing) {
+        sendError(response, 404, "not_found", "Host was not found");
+        return true;
+      }
+      if (!hooks.onHostCommand) {
+        sendError(
+          response,
+          503,
+          "host_bridge_unavailable",
+          "Host command bridge is unavailable",
+        );
+        return true;
+      }
+      let result: HostCommandBridgeResult;
+      try {
+        result = await hooks.onHostCommand(hostId, "host.health_check", {});
+      } catch (error) {
+        if (isHostUnavailableError(error)) {
+          sendError(
+            response,
+            409,
+            "host_offline",
+            "Start the selected execution host before verifying its accounts.",
+          );
+          return true;
+        }
+        throw error;
+      }
+      if (result.status !== "completed") {
+        sendError(
+          response,
+          502,
+          "host_health_failed",
+          result.error ?? "Host tool verification failed",
+        );
+        return true;
+      }
+      const inventory = parseHostHealthInventory(result.output);
+      if (!inventory) {
+        sendError(
+          response,
+          502,
+          "invalid_host_inventory",
+          "Host tool verification returned an invalid inventory",
+        );
+        return true;
+      }
+      const [host] = await requireDb().sql`
+        update hosts
+        set tool_inventory = ${JSON.stringify(inventory)}::jsonb,
+            updated_at = now()
+        where id = ${hostId} and revoked_at is null
+        returning *
+      `;
+      await recordAudit("host.tools_refreshed", auth.identity, "host", hostId);
       sendJson(response, 200, { host });
       return true;
     }
@@ -958,6 +1030,25 @@ async function requireExecutionReadiness(response: ServerResponse) {
   return false;
 }
 
+function safeJsonObject(value: string | undefined) {
+  if (!value) return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed !== null &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+export function parseHostHealthInventory(value: string | undefined) {
+  const parsed = safeJsonObject(value);
+  const inventory = hostToolInventorySchema.safeParse(parsed.inventory);
+  return inventory.success ? inventory.data : null;
+}
 async function createHostEnrollment(
   request: IncomingMessage,
   response: ServerResponse,
