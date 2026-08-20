@@ -327,8 +327,12 @@ export default function Page() {
         body: JSON.stringify(enrollmentForm),
       });
       const token = text(result.enrollmentToken, "");
+      const launcher =
+        deploymentMode === "vps"
+          ? "sudo -u maxxy-host /usr/local/bin/maxxy-host"
+          : "./deploy/maxxy-host";
       setEnrollmentCommand(
-        `bun run start:host -- enroll --server ${window.location.origin} --token ${token}`,
+        `${launcher} enroll --server ${window.location.origin} --token ${token}`,
       );
       setMessage(
         "Enrollment command created. It is single-use and expires soon.",
@@ -783,9 +787,16 @@ export default function Page() {
                         Create enrollment command
                       </Button>
                       {enrollmentCommand ? (
-                        <code className="command-block">
-                          {enrollmentCommand}
-                        </code>
+                        <>
+                          <code className="command-block">
+                            {enrollmentCommand}
+                          </code>
+                          <p>
+                            {deploymentMode === "vps"
+                              ? "Run this on the installed VPS host before the token expires."
+                              : "Run this from the maxxy-me repository root before the token expires."}
+                          </p>
+                        </>
                       ) : null}
                     </>
                   ) : null}

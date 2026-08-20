@@ -121,7 +121,7 @@ export function loadConfig(stored?: StoredHostConfig) {
 export function requireEnrolledConfig(config: HostAgentConfig) {
   if (!config.controlPlaneUrl || !config.hostId || !config.hostToken) {
     throw new Error(
-      "Host is not enrolled. Run `bun run start:host -- enroll --server <url> --token <token>` first or set MAXXY_HOST_ID/MAXXY_HOST_TOKEN.",
+      "Host is not enrolled. Run `maxxy-host enroll --server <url> --token <token>` first or set MAXXY_HOST_ID/MAXXY_HOST_TOKEN.",
     );
   }
   return {

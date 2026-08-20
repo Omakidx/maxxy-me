@@ -49,6 +49,16 @@ sudo -u maxxy-host /usr/local/bin/maxxy-host enroll \
 
 Enrollment stores the host ID and host token in the protected host data directory. Do not paste those values into chat, issues, logs, or the control-plane environment.
 
+For a local smoke test, run the generated local command from the repository root. The checked-in launcher detects Bun in `PATH`, `~/.bun/bin`, or `/usr/local/bin`:
+
+```bash
+cd /path/to/maxxy-me
+./deploy/maxxy-host enroll \
+  --server http://127.0.0.1:8080 \
+  --token <one-time-token>
+./deploy/maxxy-host start
+```
+
 ## Check Tools
 
 ```bash

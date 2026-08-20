@@ -1,5 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${BUN_BINARY:=/usr/local/bin/bun}"
-exec "${BUN_BINARY}" /opt/maxxy-me/apps/host-agent/src/agent.ts "$@"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+checkout_root="$(cd -- "${script_dir}/.." && pwd)"
+
+if [[ -n "${MAXXY_APP_ROOT:-}" ]]; then
+  app_root="${MAXXY_APP_ROOT}"
+elif [[ -f "${checkout_root}/apps/host-agent/src/agent.ts" ]]; then
+  app_root="${checkout_root}"
+else
+  app_root="/opt/maxxy-me"
+fi
+
+if [[ -n "${BUN_BINARY:-}" ]]; then
+  bun_binary="${BUN_BINARY}"
+elif command -v bun >/dev/null 2>&1; then
+  bun_binary="$(command -v bun)"
+elif [[ -x "${HOME}/.bun/bin/bun" ]]; then
+  bun_binary="${HOME}/.bun/bin/bun"
+elif [[ -x "/usr/local/bin/bun" ]]; then
+  bun_binary="/usr/local/bin/bun"
+else
+  echo "maxxy-host: Bun was not found in PATH, ~/.bun/bin, or /usr/local/bin." >&2
+  exit 127
+fi
+
+export PATH="$(dirname -- "${bun_binary}"):${PATH}"
+exec "${bun_binary}" "${app_root}/apps/host-agent/src/agent.ts" "$@"
