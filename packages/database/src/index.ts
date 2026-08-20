@@ -1,6 +1,7 @@
 export * from "./client";
 export * from "./control-plane";
 export * from "./migrator";
+export * from "./recovery";
 export * from "./repositories";
 export * from "./scheduler";
 export * from "./schema";

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createDatabase } from "./client";
 import { ControlPlaneRepository } from "./control-plane";
 import { runMigrations } from "./migrator";
+import { RecoveryService } from "./recovery";
 import { SchedulerService } from "./scheduler";
 import { TaskStateMachine } from "./task-state-machine";
 
@@ -224,6 +225,58 @@ describe("task state machine and scheduler", () => {
 
       expect(unblocked.readiedTasks).toBe(1);
       expect(["ready", "assigned"]).toContain(storedChild?.status);
+    },
+  );
+
+  integrationTest(
+    "startup reconciliation requeues stale host tasks and preserves worktrees",
+    async () => {
+      if (!database) {
+        throw new Error("Database fixture is not initialized");
+      }
+
+      const { control, host, workspace } =
+        await createSchedulerFixture("recovery_startup");
+      const task = await control.createTask({
+        workspaceId: workspace.id,
+        title: "Recover me",
+        prompt: "Recover me",
+      });
+      await new TaskStateMachine(database).start(task.id, "usr_test");
+      await new SchedulerService(database, { maxAssignmentsPerTick: 1 }).tick();
+      await database.sql`
+        update hosts
+        set last_heartbeat_at = now() - interval '10 minutes'
+        where id = ${host.id}
+      `;
+      await database.sql`
+        insert into worktrees (id, task_id, host_id, path, branch_name, base_sha, status, dirty)
+        values (${`worktree_${crypto.randomUUID()}`}, ${task.id}, ${host.id}, ${`/tmp/recovery/${task.id}`}, 'maxxy/recovery/backend', 'base', 'active', false)
+      `;
+
+      const result = await new RecoveryService(database, {
+        staleHostSeconds: 60,
+      }).reconcileStartup();
+      const [storedTask] = await control.getTask(task.id);
+      const [storedHost] = await database.sql<{ status: string }[]>`
+        select status from hosts where id = ${host.id}
+      `;
+      const [worktree] = await database.sql<
+        { status: string; dirty: boolean }[]
+      >`
+        select status, dirty from worktrees where task_id = ${task.id}
+      `;
+
+      expect(result.staleHostsMarkedOffline).toBeGreaterThanOrEqual(1);
+      expect(result.expiredTaskLeases).toBeGreaterThanOrEqual(1);
+      expect(result.expiredCodexConnectionLeases).toBeGreaterThanOrEqual(1);
+      expect(result.recoveredTasks).toBeGreaterThanOrEqual(1);
+      expect(result.preservedWorktrees).toBeGreaterThanOrEqual(1);
+      expect(storedHost?.status).toBe("offline");
+      expect(storedTask?.status).toBe("queued");
+      expect(storedTask?.assigned_host_id).toBeNull();
+      expect(worktree?.status).toBe("preserved");
+      expect(worktree?.dirty).toBe(true);
     },
   );
 

@@ -222,6 +222,16 @@ export async function handleControlPlaneApi(
     const repository = new ControlPlaneRepository(requireDb());
     const stateMachine = new TaskStateMachine(requireDb());
 
+    if (pathname === "/api/compatibility" && method === "GET") {
+      sendJson(response, 200, {
+        compatibility: await repository.compatibilityStatus({
+          controlPlaneVersion: process.env.RELEASE_VERSION ?? "development",
+          protocolVersion: process.env.PROTOCOL_VERSION ?? "1",
+        }),
+      });
+      return true;
+    }
+
     if (pathname === "/api/me" && method === "GET") {
       sendJson(response, 200, {
         user: auth.identity.user,
@@ -743,6 +753,7 @@ function isControlPlanePath(pathname: string) {
   }
 
   return (
+    pathname === "/api/compatibility" ||
     pathname === "/api/me" ||
     pathname === "/api/hosts" ||
     pathname.startsWith("/api/hosts/") ||

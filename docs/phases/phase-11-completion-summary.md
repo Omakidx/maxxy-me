@@ -2,7 +2,7 @@
 
 Date: 2026-08-20
 Branch: agent-orch-panel
-Status: Repository deliverables completed; live VPS exit gates require operator-run evidence
+Status: Partially completed; repository deliverables and containerized drill completed, live VPS exit gates remain
 
 ## Goal
 

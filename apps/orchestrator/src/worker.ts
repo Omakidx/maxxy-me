@@ -1,4 +1,8 @@
-import { createDatabase, SchedulerService } from "@maxxy/database";
+import {
+  createDatabase,
+  RecoveryService,
+  SchedulerService,
+} from "@maxxy/database";
 import postgres from "postgres";
 import { z } from "zod";
 
@@ -20,6 +24,7 @@ const database = createDatabase(config.DATABASE_URL);
 const scheduler = new SchedulerService(database, {
   maxAssignmentsPerTick: config.SCHEDULER_ASSIGNMENT_LIMIT,
 });
+const recovery = new RecoveryService(database);
 let schedulerRunning = false;
 
 function log(message: string, fields: Record<string, unknown> = {}) {
@@ -60,6 +65,8 @@ async function schedulerTick() {
 }
 
 await heartbeat();
+const reconciliation = await recovery.reconcileStartup();
+log("startup reconciliation complete", reconciliation);
 await schedulerTick();
 
 setInterval(() => {

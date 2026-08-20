@@ -805,6 +805,43 @@ export class ControlPlaneRepository {
     };
   }
 
+  async compatibilityStatus(input: {
+    controlPlaneVersion: string;
+    protocolVersion: string;
+  }) {
+    const [schema] = await this.database.sql<
+      {
+        latest_migration: string | null;
+        migration_count: number;
+      }[]
+    >`
+      select max(id) as latest_migration, count(*)::int as migration_count
+      from schema_migrations
+    `;
+    const hosts = await this.database.sql`
+      select id, name, status, protocol_version, host_version, last_heartbeat_at
+      from hosts
+      order by name asc
+    `;
+    const connections = await this.database.sql`
+      select id, host_id, label, auth_mode, status, last_health_at
+      from codex_connections
+      order by created_at desc
+    `;
+    return {
+      controlPlane: {
+        version: input.controlPlaneVersion,
+        protocolVersion: input.protocolVersion,
+      },
+      schema: {
+        latestMigration: schema?.latest_migration ?? null,
+        migrationCount: schema?.migration_count ?? 0,
+      },
+      hosts,
+      codexConnections: connections,
+    };
+  }
+
   listEvents(input: {
     workspaceId?: string | undefined;
     afterSequence?: number | undefined;
