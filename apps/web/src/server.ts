@@ -152,6 +152,7 @@ const handle = app.getRequestHandler();
 const wsOptions = getWebSocketOptions();
 const authenticatedUpgrades = new WeakMap<object, WebSocketAuth>();
 const hostSockets = new Map<string, Set<WebSocket>>();
+const ownerSockets = new Set<WebSocket>();
 const pendingHostCommands = new Map<
   string,
   {
@@ -200,6 +201,7 @@ const server = createServer(async (request, response) => {
   if (
     await handleControlPlaneApi(request, response, {
       onApprovalDecision: broadcastApprovalDecision,
+      onHostCommand: sendHostCommand,
     })
   ) {
     return;
@@ -249,6 +251,8 @@ sockets.on("connection", (socket, request) => {
     const current = hostSockets.get(hostId) ?? new Set<WebSocket>();
     current.add(socket);
     hostSockets.set(hostId, current);
+  } else {
+    ownerSockets.add(socket);
   }
 
   const expiry =
@@ -296,6 +300,8 @@ sockets.on("connection", (socket, request) => {
         hostSockets.delete(hostId);
       }
       rejectPendingHostCommandsForHost(hostId, "host websocket closed");
+    } else {
+      ownerSockets.delete(socket);
     }
     if (expiry) {
       clearTimeout(expiry);
@@ -419,7 +425,12 @@ async function persistHostRuntimeEvent(
     await markRuntimeFailed(message);
   }
 
-  await appendWorkspaceEvent(database, {
+  const payload = sanitizeTelemetry({
+    ...message.event.payload,
+    ...(message.threadId ? { threadId: message.threadId } : {}),
+    ...(message.turnId ? { turnId: message.turnId } : {}),
+  }) as Record<string, unknown>;
+  const event = await appendWorkspaceEvent(database, {
     ...(message.workspaceId ? { workspaceId: message.workspaceId } : {}),
     ...(message.taskId ? { taskId: message.taskId } : {}),
     hostId: authenticatedHostId,
@@ -432,11 +443,21 @@ async function persistHostRuntimeEvent(
       ? { capacitySourceId: message.capacitySourceId }
       : {}),
     type: message.event.type,
-    payload: sanitizeTelemetry({
-      ...message.event.payload,
-      ...(message.threadId ? { threadId: message.threadId } : {}),
-      ...(message.turnId ? { turnId: message.turnId } : {}),
-    }) as Record<string, unknown>,
+    payload,
+  });
+  broadcastOwnerEvent({
+    id: event.id,
+    type: message.event.type,
+    workspace_id: message.workspaceId,
+    task_id: message.taskId,
+    host_id: authenticatedHostId,
+    run_id: message.runId,
+    attempt_id: message.attemptId,
+    codex_connection_id: message.codexConnectionId,
+    capacity_source_id: message.capacitySourceId,
+    sequence: event.sequence,
+    occurred_at: new Date().toISOString(),
+    payload,
   });
 }
 
@@ -610,6 +631,15 @@ function broadcastApprovalDecision(message: ControlApprovalDecisionMessage) {
       if (socket.readyState === socket.OPEN) {
         socket.send(JSON.stringify(message));
       }
+    }
+  }
+}
+
+function broadcastOwnerEvent(event: Record<string, unknown>) {
+  const message = JSON.stringify({ type: "workspace.event", event });
+  for (const socket of ownerSockets) {
+    if (socket.readyState === socket.OPEN) {
+      socket.send(message);
     }
   }
 }

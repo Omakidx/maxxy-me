@@ -1,4 +1,4 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { HostConnectionReport } from "@maxxy/contracts";
 import { z } from "zod";
@@ -228,8 +228,41 @@ export class CodexConnectionRegistry {
     if (!entry || entry.removedAt) {
       return null;
     }
+    await removeCredentialFile(entry.credentialDir);
     entry.status = "disabled";
     entry.removedAt = new Date().toISOString();
+    await this.write(registry);
+    return entry;
+  }
+
+  async disconnect(codexConnectionId: string) {
+    const registry = await this.read();
+    const entry = registry.connections.find(
+      (candidate) => candidate.codexConnectionId === codexConnectionId,
+    );
+    if (!entry || entry.removedAt) {
+      throw new Error(
+        `Codex connection is not registered: ${codexConnectionId}`,
+      );
+    }
+    await removeCredentialFile(entry.credentialDir);
+    entry.status = "disabled";
+    await this.write(registry);
+    return entry;
+  }
+
+  async reauthenticate(codexConnectionId: string) {
+    const registry = await this.read();
+    const entry = registry.connections.find(
+      (candidate) => candidate.codexConnectionId === codexConnectionId,
+    );
+    if (!entry || entry.removedAt) {
+      throw new Error(
+        `Codex connection is not registered: ${codexConnectionId}`,
+      );
+    }
+    await removeCredentialFile(entry.credentialDir);
+    entry.status = "authenticating";
     await this.write(registry);
     return entry;
   }
@@ -317,6 +350,22 @@ export class CodexConnectionRegistry {
         mode: 0o600,
       },
     );
+  }
+}
+
+async function removeCredentialFile(credentialDir: string) {
+  try {
+    await unlink(path.join(credentialDir, "auth.json"));
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      return;
+    }
+    throw error;
   }
 }
 

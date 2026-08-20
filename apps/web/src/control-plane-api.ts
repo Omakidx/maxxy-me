@@ -1,5 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ControlApprovalDecisionMessage } from "@maxxy/contracts";
+import type {
+  ControlApprovalDecisionMessage,
+  HostCommandName,
+} from "@maxxy/contracts";
 import {
   ControlPlaneRepository,
   HostEnrollmentRepository,
@@ -183,7 +186,7 @@ const managerPlanApprovalSchema = z.object({
 
 const eventsQuerySchema = z.object({
   workspaceId: z.string().min(1).optional(),
-  afterSequence: z.coerce.number().int().min(-1).default(-1),
+  afterSequence: z.coerce.number().int().min(-1).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
 });
 const approvalDecisionRequestSchema = z.object({
@@ -192,6 +195,14 @@ const approvalDecisionRequestSchema = z.object({
 
 export type ControlPlaneApiHooks = {
   onApprovalDecision?: (message: ControlApprovalDecisionMessage) => void;
+  onHostCommand?: (
+    hostId: string,
+    command: HostCommandName,
+    payload: Record<string, unknown>,
+  ) => Promise<{
+    status: string;
+    error?: string | undefined;
+  }>;
 };
 
 export async function handleControlPlaneApi(
@@ -314,15 +325,25 @@ export async function handleControlPlaneApi(
       /^\/api\/codex-connections\/([^/]+)\/reauthenticate$/,
     );
     if (reauthMatch && method === "POST") {
+      const connectionId = decodeURIComponent(reauthMatch[1] ?? "");
+      const existing = await repository.getCodexConnection(connectionId);
+      if (!existing) {
+        sendError(response, 404, "not_found", "Codex connection was not found");
+        return true;
+      }
+      await runConnectionHostCommand(
+        hooks,
+        existing,
+        "codex.connection.reauthenticate",
+      );
       const connection = await repository.updateCodexConnectionStatus({
-        connectionId: decodeURIComponent(reauthMatch[1] ?? ""),
+        connectionId,
         status: "authenticating",
         action: "codex.connection_reauthentication_requested",
         actorUserId: auth.identity.user.id,
       });
       if (!connection) {
-        sendError(response, 404, "not_found", "Codex connection was not found");
-        return true;
+        throw new Error("Codex connection disappeared during reauthentication");
       }
       await recordAudit(
         "codex.connection_reauthentication_requested",
@@ -341,15 +362,25 @@ export async function handleControlPlaneApi(
       const body = z
         .object({ status: connectionStatusSchema.default("disabled") })
         .parse(await readJson(request).catch(() => ({})));
+      const connectionId = decodeURIComponent(disableMatch[1] ?? "");
+      const existing = await repository.getCodexConnection(connectionId);
+      if (!existing) {
+        sendError(response, 404, "not_found", "Codex connection was not found");
+        return true;
+      }
+      await runConnectionHostCommand(
+        hooks,
+        existing,
+        "codex.connection.disable",
+      );
       const connection = await repository.updateCodexConnectionStatus({
-        connectionId: decodeURIComponent(disableMatch[1] ?? ""),
+        connectionId,
         status: body.status,
         action: "codex.connection_disabled",
         actorUserId: auth.identity.user.id,
       });
       if (!connection) {
-        sendError(response, 404, "not_found", "Codex connection was not found");
-        return true;
+        throw new Error("Codex connection disappeared while disconnecting");
       }
       await recordAudit(
         "codex.connection_disabled",
@@ -365,8 +396,22 @@ export async function handleControlPlaneApi(
       /^\/api\/codex-connections\/([^/]+)$/,
     );
     if (deleteConnectionMatch && method === "DELETE") {
+      const connectionId = decodeURIComponent(deleteConnectionMatch[1] ?? "");
+      const existing = await repository.getCodexConnection(connectionId);
+      if (!existing) {
+        sendError(response, 404, "not_found", "Codex connection was not found");
+        return true;
+      }
+      await runConnectionHostCommand(
+        hooks,
+        existing,
+        "codex.connection.remove",
+        {
+          activeLeaseCount: Number(existing.active_lease_count ?? 0),
+        },
+      );
       const connection = await repository.deleteCodexConnection(
-        decodeURIComponent(deleteConnectionMatch[1] ?? ""),
+        connectionId,
         auth.identity.user.id,
       );
       if (!connection) {
@@ -690,6 +735,36 @@ export async function handleControlPlaneApi(
       );
     }
     return true;
+  }
+}
+
+async function runConnectionHostCommand(
+  hooks: ControlPlaneApiHooks,
+  connection: Record<string, unknown>,
+  command: HostCommandName,
+  extraPayload: Record<string, unknown> = {},
+) {
+  if (!hooks.onHostCommand) {
+    throw new Error("Host command bridge is unavailable");
+  }
+  const result = await hooks.onHostCommand(
+    String(connection.host_id),
+    command,
+    {
+      codexConnectionId: String(connection.id),
+      authMode: String(connection.auth_mode),
+      label: String(connection.label),
+      capacitySourceId: String(connection.capacity_source_id),
+      credentialSlotId: String(connection.credential_slot_id),
+      maxConcurrentRuns: Number(connection.max_concurrent_runs ?? 1),
+      ...extraPayload,
+    },
+  );
+  if (
+    result.status !== "completed" &&
+    !result.error?.includes("not registered")
+  ) {
+    throw new Error(result.error ?? `Host command failed: ${command}`);
   }
 }
 

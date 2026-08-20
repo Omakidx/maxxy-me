@@ -1,11 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  Activity,
+  Bot,
+  CircleDot,
+  LayoutDashboard,
+  ListTodo,
+  Play,
+  Plus,
+  Radio,
+  Server,
+  Settings,
+  ShieldCheck,
+  Trash2,
+  Unplug,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ThemeToggle } from "./theme-toggle";
 import { Badge, Button, Card, CardLabel, Input, Textarea } from "./ui";
 
 type ApiState = "loading" | "ready" | "signed_out" | "bootstrap" | "error";
 type JsonRecord = Record<string, unknown>;
+type DeploymentMode = "" | "local" | "vps";
+type StreamState = "connecting" | "live" | "offline";
 
 type PlannedTask = {
   title: string;
@@ -57,6 +74,67 @@ function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\"'\"'")}'`;
 }
 
+function record(value: unknown): JsonRecord {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as JsonRecord)
+    : {};
+}
+
+function isReadyConnection(connection: JsonRecord) {
+  return text(connection.status).startsWith("ready_");
+}
+
+function connectionLoginCommand(
+  connection: JsonRecord,
+  deploymentMode: DeploymentMode,
+) {
+  const authMode = text(connection.auth_mode, "chatgpt");
+  const launcher =
+    deploymentMode === "vps"
+      ? "sudo -u maxxy-host /usr/local/bin/maxxy-host"
+      : "./deploy/maxxy-host";
+  const command = [
+    launcher,
+    "codex-login",
+    "--connection-id",
+    shellQuote(text(connection.id)),
+    "--auth-mode",
+    shellQuote(authMode),
+    "--credential-slot",
+    shellQuote(text(connection.credential_slot_id, "primary")),
+    "--capacity-source-id",
+    shellQuote(text(connection.capacity_source_id)),
+    ...(deploymentMode === "vps" && authMode === "chatgpt"
+      ? ["--device-auth"]
+      : []),
+  ].join(" ");
+
+  return authMode === "api_key"
+    ? `read -rsp 'OpenAI API key: ' OPENAI_API_KEY; printf '%s' "$OPENAI_API_KEY" | ${command}; unset OPENAI_API_KEY`
+    : command;
+}
+
+function eventSummary(event: JsonRecord) {
+  const payload = record(event.payload);
+  return text(
+    payload.message,
+    text(
+      payload.summary,
+      text(
+        payload.command,
+        text(payload.status, text(event.type).replaceAll(".", " ")),
+      ),
+    ),
+  );
+}
+
+function formatTimestamp(value: unknown) {
+  const date = new Date(text(value, ""));
+  return Number.isNaN(date.valueOf())
+    ? "Just now"
+    : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 async function parseJson(response: Response) {
   const body = (await response.json().catch(() => ({}))) as JsonRecord;
   if (!response.ok) {
@@ -71,9 +149,7 @@ export default function Page() {
   const [csrfToken, setCsrfToken] = useState("");
   const [message, setMessage] = useState("");
   const [data, setData] = useState<DashboardData>(emptyData);
-  const [deploymentMode, setDeploymentMode] = useState<"" | "local" | "vps">(
-    "",
-  );
+  const [deploymentMode, setDeploymentMode] = useState<DeploymentMode>("");
   const [githubReady, setGithubReady] = useState(false);
   const [activeOnboardingStep, setActiveOnboardingStep] = useState(0);
   const [enrollmentForm, setEnrollmentForm] = useState({
@@ -115,8 +191,11 @@ export default function Page() {
     startImmediately: true,
   });
   const [managerPlan, setManagerPlan] = useState<ManagerPlan | undefined>();
+  const [streamState, setStreamState] = useState<StreamState>("offline");
+  const [focusedTaskId, setFocusedTaskId] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [taskReview, setTaskReview] = useState<JsonRecord | undefined>();
+  const streamRefreshTimer = useRef<number | undefined>(undefined);
   const [validationProfileText, setValidationProfileText] = useState(
     JSON.stringify(
       {
@@ -152,16 +231,23 @@ export default function Page() {
       "opening_pull_request",
     ].includes(text(task.status)),
   );
+  const focusedTask =
+    data.tasks.find((task) => text(task.id) === focusedTaskId) ??
+    activeTasks[0] ??
+    data.tasks[0];
+  const focusedTaskEvents = focusedTask
+    ? data.events.filter(
+        (event) => text(event.task_id, "") === text(focusedTask.id, ""),
+      )
+    : [];
+  const latestFocusedEvent = focusedTaskEvents.at(-1);
   const openPrTasks = data.tasks.filter(
     (task) => text(task.status) === "awaiting_review",
   );
   const signedIn = state === "ready";
-  const readyCodexConnections = data.codexConnections.filter((connection) =>
-    [
-      "ready_chatgpt",
-      "ready_api_key",
-      "ready_enterprise_access_token",
-    ].includes(text(connection.status)),
+  const readyCodexConnections = data.codexConnections.filter(isReadyConnection);
+  const hostsById = new Map(
+    data.hosts.map((host) => [text(host.id), host] as const),
   );
   const selectedHostConnections = data.codexConnections.filter(
     (connection) => text(connection.host_id) === connectionForm.hostId,
@@ -222,7 +308,7 @@ export default function Page() {
           api("/api/tasks"),
           api("/api/codex-capacity/summary"),
           api("/api/approvals"),
-          api("/api/events?limit=20"),
+          api("/api/events?limit=200"),
         ]);
       const hostRows = (hosts.hosts as JsonRecord[]) ?? [];
       const connectionResponses = await Promise.all(
@@ -258,7 +344,6 @@ export default function Page() {
           ? current.hostId
           : text(onlineHost?.id, ""),
       }));
-      setMessage("");
     } catch (error) {
       setState("error");
       setMessage(error instanceof Error ? error.message : String(error));
@@ -382,33 +467,7 @@ export default function Page() {
         },
       );
       const connection = result.connection as JsonRecord;
-      const authMode = text(connection.auth_mode, connectionForm.authMode);
-      const launcher =
-        deploymentMode === "vps"
-          ? "sudo -u maxxy-host /usr/local/bin/maxxy-host"
-          : "./deploy/maxxy-host";
-      const command = [
-        launcher,
-        "codex-login",
-        "--connection-id",
-        shellQuote(text(connection.id)),
-        "--auth-mode",
-        shellQuote(authMode),
-        "--credential-slot",
-        shellQuote(
-          text(connection.credential_slot_id, connectionForm.credentialSlotId),
-        ),
-        "--capacity-source-id",
-        shellQuote(text(connection.capacity_source_id)),
-        ...(deploymentMode === "vps" && authMode === "chatgpt"
-          ? ["--device-auth"]
-          : []),
-      ].join(" ");
-      setCodexLoginCommand(
-        authMode === "api_key"
-          ? `read -rsp 'OpenAI API key: ' OPENAI_API_KEY; printf '%s' "$OPENAI_API_KEY" | ${command}; unset OPENAI_API_KEY`
-          : command,
-      );
+      setCodexLoginCommand(connectionLoginCommand(connection, deploymentMode));
       setMessage(
         "Codex connection prepared. Run the login command on the selected host.",
       );
@@ -417,10 +476,57 @@ export default function Page() {
       setMessage(error instanceof Error ? error.message : String(error));
     }
   }
+  async function manageCodexConnection(
+    connection: JsonRecord,
+    action: "connect" | "disconnect" | "remove",
+  ) {
+    const connectionId = text(connection.id, "");
+    if (!connectionId) return;
+    if (
+      action === "remove" &&
+      !window.confirm(
+        `Remove ${text(connection.label, "this Codex connection")}? Its saved host credential will also be deleted.`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      if (action === "connect") {
+        const result = await api(
+          `/api/codex-connections/${encodeURIComponent(connectionId)}/reauthenticate`,
+          { method: "POST" },
+        );
+        const updated = record(result.connection);
+        setCodexLoginCommand(
+          connectionLoginCommand(
+            Object.keys(updated).length > 0 ? updated : connection,
+            deploymentMode,
+          ),
+        );
+        setMessage("Run the login command below on the selected host.");
+      } else if (action === "disconnect") {
+        await api(
+          `/api/codex-connections/${encodeURIComponent(connectionId)}/disable`,
+          { method: "POST" },
+        );
+        setMessage(`${text(connection.label)} disconnected`);
+      } else {
+        await api(
+          `/api/codex-connections/${encodeURIComponent(connectionId)}`,
+          { method: "DELETE" },
+        );
+        setMessage(`${text(connection.label)} removed`);
+      }
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
 
   async function createTask() {
     try {
-      await api("/api/tasks", {
+      const result = await api("/api/tasks", {
         method: "POST",
         body: JSON.stringify({
           workspaceId: selectedWorkspaceId,
@@ -431,6 +537,7 @@ export default function Page() {
         }),
       });
       setTaskForm((current) => ({ ...current, title: "", prompt: "" }));
+      setFocusedTaskId(text(record(result.task).id, ""));
       setMessage("Task created");
       await refresh();
     } catch (error) {
@@ -445,6 +552,23 @@ export default function Page() {
         `/api/tasks/${encodeURIComponent(taskId)}/review`,
       );
       setTaskReview(result.review as JsonRecord);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function runTaskAction(
+    taskId: string,
+    action: "start" | "cancel" | "retry",
+  ) {
+    try {
+      await api(
+        `/api/tasks/${encodeURIComponent(taskId)}/${encodeURIComponent(action)}`,
+        { method: "POST" },
+      );
+      setFocusedTaskId(taskId);
+      setMessage(`Task ${action} requested`);
+      await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     }
@@ -574,8 +698,85 @@ export default function Page() {
   ]);
 
   useEffect(() => {
+    if (!focusedTaskId && activeTasks[0]) {
+      setFocusedTaskId(text(activeTasks[0].id, ""));
+    }
+  }, [activeTasks, focusedTaskId]);
+
+  useEffect(() => {
+    if (!signedIn || !csrfToken) return;
+    let socket: WebSocket | undefined;
+    let reconnectTimer: number | undefined;
+    let stopped = false;
+
+    const connect = async () => {
+      setStreamState("connecting");
+      try {
+        const ticket = await api("/api/ws-ticket", {
+          method: "POST",
+          body: JSON.stringify({ purpose: "control" }),
+        });
+        if (stopped) return;
+        socket = new WebSocket(text(ticket.wsUrl, ""));
+        socket.addEventListener("open", () => setStreamState("live"));
+        socket.addEventListener("message", (message) => {
+          const envelope = JSON.parse(String(message.data)) as JsonRecord;
+          if (envelope.type !== "workspace.event") return;
+          const event = record(envelope.event);
+          const eventId = text(event.id, "");
+          setData((current) => {
+            if (
+              eventId &&
+              current.events.some((existing) => text(existing.id) === eventId)
+            ) {
+              return current;
+            }
+            return {
+              ...current,
+              events: [...current.events, event]
+                .sort(
+                  (left, right) =>
+                    new Date(text(left.occurred_at, "")).valueOf() -
+                    new Date(text(right.occurred_at, "")).valueOf(),
+                )
+                .slice(-200),
+            };
+          });
+          if (streamRefreshTimer.current) {
+            window.clearTimeout(streamRefreshTimer.current);
+          }
+          streamRefreshTimer.current = window.setTimeout(
+            () => void refresh(),
+            750,
+          );
+        });
+        socket.addEventListener("close", () => {
+          if (stopped) return;
+          setStreamState("offline");
+          reconnectTimer = window.setTimeout(() => void connect(), 2_000);
+        });
+        socket.addEventListener("error", () => setStreamState("offline"));
+      } catch {
+        if (stopped) return;
+        setStreamState("offline");
+        reconnectTimer = window.setTimeout(() => void connect(), 2_000);
+      }
+    };
+
+    void connect();
+    return () => {
+      stopped = true;
+      socket?.close();
+      if (reconnectTimer) window.clearTimeout(reconnectTimer);
+      if (streamRefreshTimer.current) {
+        window.clearTimeout(streamRefreshTimer.current);
+      }
+    };
+  }, [signedIn, csrfToken]);
+
+  useEffect(() => {
     if (!signedIn) return;
-    const timer = window.setInterval(() => void refresh(), 10_000);
+    const timer = window.setInterval(() => void refresh(), 5_000);
     return () => window.clearInterval(timer);
   }, [signedIn, csrfToken]);
 
@@ -591,25 +792,40 @@ export default function Page() {
         </div>
         <nav className="nav-list">
           <a className="nav-link active" href="#dashboard">
-            Dashboard
+            <LayoutDashboard aria-hidden="true" />
+            <span>Dashboard</span>
           </a>
           <a className="nav-link" href="#onboarding">
-            Setup
+            <ShieldCheck aria-hidden="true" />
+            <span>Setup</span>
+          </a>
+          <a className="nav-link" href="#execution">
+            <Bot aria-hidden="true" />
+            <span>Agent console</span>
           </a>
           <a className="nav-link" href="#plans">
-            Plans
+            <ListTodo aria-hidden="true" />
+            <span>Plans</span>
           </a>
           <a className="nav-link" href="#tasks">
-            Tasks
+            <Play aria-hidden="true" />
+            <span>Tasks</span>
           </a>
           <a className="nav-link" href="#hosts">
-            Hosts
+            <Server aria-hidden="true" />
+            <span>Hosts</span>
           </a>
           <a className="nav-link" href="#approvals">
-            Approvals
+            <CircleDot aria-hidden="true" />
+            <span>Approvals</span>
           </a>
           <a className="nav-link" href="#events">
-            Events
+            <Activity aria-hidden="true" />
+            <span>Events</span>
+          </a>
+          <a className="nav-link" href="#settings">
+            <Settings aria-hidden="true" />
+            <span>Settings</span>
           </a>
         </nav>
       </aside>
@@ -970,7 +1186,7 @@ export default function Page() {
                         Give Codex a focused change and follow its validation
                         and pull request evidence below.
                       </p>
-                      <a className="doc-link" href="#first-task">
+                      <a className="doc-link" href="#execution">
                         Continue to task setup
                       </a>
                     </>
@@ -1002,6 +1218,209 @@ export default function Page() {
               />
             </section>
 
+            <Card className="execution-studio" id="execution">
+              <div className="section-heading execution-heading">
+                <div>
+                  <CardLabel>Agent console</CardLabel>
+                  <h2>Prompt and live execution</h2>
+                </div>
+                <Badge
+                  className="stream-badge"
+                  variant={streamState === "live" ? "success" : "muted"}
+                >
+                  <Radio aria-hidden="true" />
+                  {streamState}
+                </Badge>
+              </div>
+              <div className="execution-grid">
+                <section className="prompt-composer">
+                  <label className="field">
+                    <span>Workspace</span>
+                    <select
+                      value={selectedWorkspaceId}
+                      onChange={(event) =>
+                        setTaskForm({
+                          ...taskForm,
+                          workspaceId: event.target.value,
+                        })
+                      }
+                    >
+                      {data.workspaces.map((workspace) => (
+                        <option
+                          value={text(workspace.id)}
+                          key={text(workspace.id)}
+                        >
+                          {text(workspace.name)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Input
+                    label="Task title"
+                    placeholder="Describe the outcome"
+                    value={taskForm.title}
+                    onChange={(event) =>
+                      setTaskForm({ ...taskForm, title: event.target.value })
+                    }
+                  />
+                  <Textarea
+                    className="agent-prompt"
+                    label="Prompt"
+                    placeholder="Tell the agent what to build, change, or investigate..."
+                    value={taskForm.prompt}
+                    onChange={(event) =>
+                      setTaskForm({ ...taskForm, prompt: event.target.value })
+                    }
+                  />
+                  <div className="composer-actions">
+                    <label className="check-field">
+                      <input
+                        checked={taskForm.startImmediately}
+                        type="checkbox"
+                        onChange={(event) =>
+                          setTaskForm({
+                            ...taskForm,
+                            startImmediately: event.target.checked,
+                          })
+                        }
+                      />
+                      Start immediately
+                    </label>
+                    <Button
+                      disabled={
+                        !selectedWorkspaceId ||
+                        !taskForm.title ||
+                        !taskForm.prompt
+                      }
+                      onClick={() => void createTask()}
+                      variant="primary"
+                    >
+                      <Play aria-hidden="true" />
+                      Run task
+                    </Button>
+                  </div>
+                </section>
+
+                <section
+                  aria-live="polite"
+                  className="live-execution"
+                  aria-label="Live agent activity"
+                >
+                  {focusedTask ? (
+                    <>
+                      <div className="focused-task-header">
+                        <div>
+                          <span className="activity-kicker">Focused task</span>
+                          <h3>{text(focusedTask.title)}</h3>
+                          <p>
+                            {text(focusedTask.workspace_name)} ·{" "}
+                            {text(
+                              focusedTask.assigned_host_id,
+                              "Awaiting host",
+                            )}
+                          </p>
+                        </div>
+                        <Badge
+                          variant={
+                            activeTasks.some(
+                              (task) => text(task.id) === text(focusedTask.id),
+                            )
+                              ? "success"
+                              : "muted"
+                          }
+                        >
+                          {text(focusedTask.status)}
+                        </Badge>
+                      </div>
+                      <div className="current-activity">
+                        <Bot aria-hidden="true" />
+                        <div>
+                          <span>Agent is currently</span>
+                          <strong>
+                            {latestFocusedEvent
+                              ? eventSummary(latestFocusedEvent)
+                              : text(focusedTask.status).replaceAll("_", " ")}
+                          </strong>
+                        </div>
+                      </div>
+                      <div className="row-actions task-actions">
+                        {["queued", "blocked"].includes(
+                          text(focusedTask.status),
+                        ) ? (
+                          <Button
+                            onClick={() =>
+                              void runTaskAction(text(focusedTask.id), "start")
+                            }
+                          >
+                            <Play aria-hidden="true" />
+                            Start
+                          </Button>
+                        ) : null}
+                        {["failed", "cancelled"].includes(
+                          text(focusedTask.status),
+                        ) ? (
+                          <Button
+                            onClick={() =>
+                              void runTaskAction(text(focusedTask.id), "retry")
+                            }
+                          >
+                            <Play aria-hidden="true" />
+                            Retry
+                          </Button>
+                        ) : null}
+                        {activeTasks.some(
+                          (task) => text(task.id) === text(focusedTask.id),
+                        ) ? (
+                          <Button
+                            onClick={() =>
+                              void runTaskAction(text(focusedTask.id), "cancel")
+                            }
+                          >
+                            <Unplug aria-hidden="true" />
+                            Cancel
+                          </Button>
+                        ) : null}
+                      </div>
+                      <div className="activity-feed">
+                        {focusedTaskEvents
+                          .slice(-12)
+                          .reverse()
+                          .map((event, index) => (
+                            <div className="activity-item" key={text(event.id)}>
+                              <span
+                                className={
+                                  index === 0
+                                    ? "activity-marker active"
+                                    : "activity-marker"
+                                }
+                              />
+                              <div>
+                                <strong>{eventSummary(event)}</strong>
+                                <span>
+                                  {text(event.type)} ·{" "}
+                                  {formatTimestamp(event.occurred_at)}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        {focusedTaskEvents.length === 0 ? (
+                          <p className="empty">
+                            Activity will appear here when the host starts this
+                            task.
+                          </p>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="execution-empty">
+                      <Bot aria-hidden="true" />
+                      <p>Create a task to follow the agent in real time.</p>
+                    </div>
+                  )}
+                </section>
+              </div>
+            </Card>
+
             <section className="content-grid">
               <Card className="task-panel" id="tasks">
                 <div className="section-heading">
@@ -1009,7 +1428,7 @@ export default function Page() {
                     <CardLabel>Queue</CardLabel>
                     <h2>Task execution</h2>
                   </div>
-                  <Badge>Live</Badge>
+                  <Badge>{streamState}</Badge>
                 </div>
                 <div className="table">
                   <div className="table-row table-head">
@@ -1021,7 +1440,15 @@ export default function Page() {
                   </div>
                   {data.tasks.map((task) => (
                     <div className="table-row" key={text(task.id)}>
-                      <span>{text(task.title)}</span>
+                      <span>
+                        <button
+                          className="task-focus"
+                          onClick={() => setFocusedTaskId(text(task.id))}
+                          type="button"
+                        >
+                          {text(task.title)}
+                        </button>
+                      </span>
                       <span>
                         <Badge variant="muted">{text(task.status)}</Badge>
                       </span>
@@ -1180,7 +1607,7 @@ export default function Page() {
               </div>
             </Card>
 
-            <section className="form-grid">
+            <section className="form-grid workspace-settings-grid">
               <Card className="form-card" id="repository-setup">
                 <CardLabel>Workspace</CardLabel>
                 <h2>Create workspace</h2>
@@ -1254,66 +1681,175 @@ export default function Page() {
                 </Button>
               </Card>
 
-              <Card className="form-card" id="first-task">
-                <CardLabel>Task</CardLabel>
-                <h2>Create task</h2>
-                <label className="field">
-                  <span>Workspace</span>
-                  <select
-                    value={selectedWorkspaceId}
-                    onChange={(event) =>
-                      setTaskForm({
-                        ...taskForm,
-                        workspaceId: event.target.value,
-                      })
-                    }
-                  >
-                    {data.workspaces.map((workspace) => (
-                      <option
-                        value={text(workspace.id)}
-                        key={text(workspace.id)}
-                      >
-                        {text(workspace.name)}
-                      </option>
+              <Card className="account-settings" id="settings">
+                <div className="section-heading">
+                  <div>
+                    <CardLabel>Settings</CardLabel>
+                    <h2>Connected Codex accounts</h2>
+                  </div>
+                  <Badge>{data.codexConnections.length}</Badge>
+                </div>
+                <div className="settings-content">
+                  <section className="account-form">
+                    <div className="two-col">
+                      <label className="field">
+                        <span>Execution host</span>
+                        <select
+                          value={connectionForm.hostId}
+                          onChange={(event) =>
+                            setConnectionForm({
+                              ...connectionForm,
+                              hostId: event.target.value,
+                            })
+                          }
+                        >
+                          <option value="">Select host</option>
+                          {data.hosts.map((host) => (
+                            <option
+                              disabled={text(host.status) !== "online"}
+                              key={text(host.id)}
+                              value={text(host.id)}
+                            >
+                              {text(host.name)} ({text(host.status)})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>Authentication</span>
+                        <select
+                          value={connectionForm.authMode}
+                          onChange={(event) =>
+                            setConnectionForm({
+                              ...connectionForm,
+                              authMode: event.target.value,
+                            })
+                          }
+                        >
+                          <option value="chatgpt">ChatGPT account</option>
+                          <option value="api_key">API key</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="two-col">
+                      <Input
+                        label="Connection label"
+                        value={connectionForm.label}
+                        onChange={(event) =>
+                          setConnectionForm({
+                            ...connectionForm,
+                            label: event.target.value,
+                          })
+                        }
+                      />
+                      <Input
+                        label="Credential slot"
+                        value={connectionForm.credentialSlotId}
+                        onChange={(event) =>
+                          setConnectionForm({
+                            ...connectionForm,
+                            credentialSlotId: event.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <Button
+                      disabled={
+                        !connectionForm.hostId ||
+                        !connectionForm.label ||
+                        !connectionForm.credentialSlotId
+                      }
+                      onClick={() => void setupCodexConnection()}
+                      variant="primary"
+                    >
+                      <Plus aria-hidden="true" />
+                      Add account
+                    </Button>
+                  </section>
+
+                  <section className="account-list" aria-label="Codex accounts">
+                    {data.codexConnections.map((connection) => (
+                      <div className="account-row" key={text(connection.id)}>
+                        <div className="account-identity">
+                          <span className="account-icon">
+                            <Bot aria-hidden="true" />
+                          </span>
+                          <div>
+                            <strong>{text(connection.label)}</strong>
+                            <span>
+                              {text(
+                                hostsById.get(text(connection.host_id))?.name,
+                                "Unknown host",
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="account-meta">
+                          <span>
+                            {text(connection.auth_mode).replaceAll("_", " ")}
+                          </span>
+                          <span>
+                            Slot {text(connection.credential_slot_id)}
+                          </span>
+                        </div>
+                        <Badge
+                          variant={
+                            isReadyConnection(connection) ? "success" : "muted"
+                          }
+                        >
+                          {text(connection.status).replaceAll("_", " ")}
+                        </Badge>
+                        <div className="account-actions">
+                          <Button
+                            onClick={() =>
+                              void manageCodexConnection(connection, "connect")
+                            }
+                          >
+                            <Play aria-hidden="true" />
+                            {isReadyConnection(connection)
+                              ? "Reconnect"
+                              : "Connect"}
+                          </Button>
+                          {text(connection.status) !== "disabled" ? (
+                            <Button
+                              onClick={() =>
+                                void manageCodexConnection(
+                                  connection,
+                                  "disconnect",
+                                )
+                              }
+                            >
+                              <Unplug aria-hidden="true" />
+                              Disconnect
+                            </Button>
+                          ) : null}
+                          <Button
+                            aria-label={`Remove ${text(connection.label)}`}
+                            className="icon-button"
+                            onClick={() =>
+                              void manageCodexConnection(connection, "remove")
+                            }
+                            title="Remove account"
+                          >
+                            <Trash2 aria-hidden="true" />
+                          </Button>
+                        </div>
+                      </div>
                     ))}
-                  </select>
-                </label>
-                <Input
-                  label="Title"
-                  value={taskForm.title}
-                  onChange={(event) =>
-                    setTaskForm({ ...taskForm, title: event.target.value })
-                  }
-                />
-                <Textarea
-                  label="Prompt"
-                  value={taskForm.prompt}
-                  onChange={(event) =>
-                    setTaskForm({ ...taskForm, prompt: event.target.value })
-                  }
-                />
-                <label className="check-field">
-                  <input
-                    checked={taskForm.startImmediately}
-                    type="checkbox"
-                    onChange={(event) =>
-                      setTaskForm({
-                        ...taskForm,
-                        startImmediately: event.target.checked,
-                      })
-                    }
-                  />
-                  Start immediately
-                </label>
-                <Button
-                  disabled={
-                    !selectedWorkspaceId || !taskForm.title || !taskForm.prompt
-                  }
-                  onClick={() => void createTask()}
-                  variant="primary"
-                >
-                  Create task
-                </Button>
+                    {data.codexConnections.length === 0 ? (
+                      <div className="execution-empty">
+                        <Bot aria-hidden="true" />
+                        <p>No Codex accounts connected yet.</p>
+                      </div>
+                    ) : null}
+                  </section>
+                </div>
+                {codexLoginCommand ? (
+                  <div className="login-command">
+                    <span>Run on the selected execution host</span>
+                    <code className="command-block">{codexLoginCommand}</code>
+                  </div>
+                ) : null}
               </Card>
             </section>
 

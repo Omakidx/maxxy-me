@@ -11,9 +11,10 @@
   "dependencies": {
     "@maxxy/contracts": "workspace:*",
     "@maxxy/database": "workspace:*",
+    "@maxxy/git": "workspace:*",
+    "@maxxy/github": "workspace:*",
     "@maxxy/logger": "workspace:*",
     "@maxxy/security": "workspace:*",
-    "@maxxy/git": "workspace:*",
-    "@maxxy/github": "workspace:*"
+    "lucide-react": "^1.33.0"
   }
 }

@@ -98,9 +98,18 @@ body {
 
 .nav-link {
   border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
   color: var(--muted-foreground);
   padding: 10px 12px;
   text-decoration: none;
+}
+
+.nav-link svg {
+  width: 17px;
+  height: 17px;
 }
 
 .nav-link:hover,
@@ -134,6 +143,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 7px;
   min-height: 38px;
   border: 1px solid var(--border);
   border-radius: 0;
@@ -142,6 +152,11 @@ body {
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+.button svg {
+  width: 16px;
+  height: 16px;
 }
 
 .button:focus-visible {
@@ -651,6 +666,309 @@ h2 {
   opacity: 0.5;
 }
 
+.execution-studio {
+  margin-bottom: 12px;
+  padding: 18px;
+  scroll-margin-top: 16px;
+}
+
+.execution-heading {
+  margin-bottom: 18px;
+}
+
+.stream-badge {
+  gap: 6px;
+  text-transform: capitalize;
+}
+
+.stream-badge svg {
+  width: 14px;
+  height: 14px;
+}
+
+.execution-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.8fr) minmax(420px, 1.2fr);
+  border-top: 1px solid var(--border);
+}
+
+.prompt-composer {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px 18px 0 0;
+}
+
+.field textarea.agent-prompt {
+  min-height: 220px;
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.live-execution {
+  min-width: 0;
+  min-height: 440px;
+  border-left: 1px solid var(--border);
+  padding: 18px 0 0 18px;
+}
+
+.focused-task-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.focused-task-header h3,
+.focused-task-header p {
+  margin: 0;
+}
+
+.focused-task-header h3 {
+  margin-top: 4px;
+  font-size: 1rem;
+}
+
+.focused-task-header p {
+  margin-top: 5px;
+  color: var(--muted-foreground);
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
+.activity-kicker,
+.login-command > span {
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.current-activity {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  padding: 12px;
+}
+
+.current-activity > svg {
+  width: 20px;
+  height: 20px;
+  margin: auto;
+}
+
+.current-activity span,
+.current-activity strong {
+  display: block;
+}
+
+.current-activity span {
+  color: var(--muted-foreground);
+  font-size: 0.76rem;
+}
+
+.current-activity strong {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.task-actions {
+  margin-top: 10px;
+}
+
+.activity-feed {
+  display: grid;
+  max-height: 258px;
+  margin-top: 14px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+}
+
+.activity-item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding: 11px 4px;
+}
+
+.activity-marker {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border: 1px solid var(--muted-foreground);
+  background: var(--background);
+}
+
+.activity-marker.active {
+  border-color: var(--success);
+  background: var(--success);
+}
+
+.activity-item strong,
+.activity-item span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.activity-item strong {
+  font-size: 0.86rem;
+}
+
+.activity-item span {
+  margin-top: 3px;
+  color: var(--muted-foreground);
+  font-size: 0.76rem;
+}
+
+.execution-empty {
+  display: grid;
+  min-height: 160px;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.execution-empty svg {
+  width: 24px;
+  height: 24px;
+}
+
+.execution-empty p {
+  margin: 0;
+}
+
+.task-focus {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+
+.task-focus:hover,
+.task-focus:focus-visible {
+  text-decoration-color: currentColor;
+}
+
+.workspace-settings-grid {
+  grid-template-columns: minmax(320px, 0.7fr) minmax(520px, 1.3fr);
+}
+
+.account-settings {
+  padding: 18px;
+  scroll-margin-top: 16px;
+}
+
+.settings-content {
+  display: grid;
+  gap: 18px;
+}
+
+.account-form {
+  display: grid;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 18px;
+}
+
+.account-form > .button {
+  width: fit-content;
+}
+
+.account-list {
+  display: grid;
+  border: 1px solid var(--border);
+}
+
+.account-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.65fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+
+.account-row + .account-row {
+  border-top: 1px solid var(--border);
+}
+
+.account-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.account-icon {
+  display: grid;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--border);
+  background: var(--muted);
+}
+
+.account-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.account-identity strong,
+.account-identity span,
+.account-meta span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.account-identity span,
+.account-meta {
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+}
+
+.account-meta {
+  line-height: 1.45;
+}
+
+.account-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.login-command {
+  display: grid;
+  gap: 7px;
+  margin-top: 16px;
+}
+
+.login-command .command-block {
+  margin: 0;
+}
+
 @media (max-width: 980px) {
   .app-shell {
     display: block;
@@ -681,7 +999,8 @@ h2 {
   .content-grid,
   .form-grid,
   .plan-grid,
-  .onboarding-layout {
+  .onboarding-layout,
+  .execution-grid {
     grid-template-columns: 1fr;
   }
 
@@ -690,6 +1009,17 @@ h2 {
     border-top: 1px solid var(--border);
     border-left: 0;
     padding: 16px 0 0;
+  }
+  .prompt-composer {
+    padding-right: 0;
+  }
+
+  .live-execution {
+    min-height: 360px;
+    margin-top: 18px;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+    padding: 18px 0 0;
   }
 }
 
@@ -740,5 +1070,28 @@ h2 {
 
   .icon-button {
     flex: 0 0 38px;
+    .execution-studio,
+    .account-settings {
+      padding: 14px;
+    }
+
+    .composer-actions,
+    .focused-task-header {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .account-row {
+      grid-template-columns: 1fr;
+    }
+
+    .account-actions {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .activity-feed {
+      max-height: 320px;
+    }
   }
 }

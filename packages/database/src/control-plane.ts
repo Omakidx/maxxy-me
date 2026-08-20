@@ -253,7 +253,7 @@ export class ControlPlaneRepository {
     const [connection] = await this.database.sql`
       update codex_connections
       set status = ${input.status},
-          disabled_at = case when ${input.status} = 'disabled' then now() else disabled_at end,
+          disabled_at = case when ${input.status} = 'disabled' then now() else null end,
           updated_at = now()
       where id = ${input.connectionId}
       returning *
@@ -269,6 +269,18 @@ export class ControlPlaneRepository {
       payload: { actorUserId: input.actorUserId, status: input.status },
     });
     return connection;
+  }
+
+  async getCodexConnection(connectionId: string) {
+    const [connection] = await this.database.sql`
+      select c.*,
+        (select count(*)::int from codex_connection_leases l
+         where l.codex_connection_id = c.id and l.status = 'active') as active_lease_count
+      from codex_connections c
+      where c.id = ${connectionId}
+      limit 1
+    `;
+    return connection ?? null;
   }
 
   async deleteCodexConnection(connectionId: string, actorUserId?: string) {
@@ -863,15 +875,32 @@ export class ControlPlaneRepository {
     afterSequence?: number | undefined;
     limit?: number | undefined;
   }) {
+    const limit = Math.min(input.limit ?? 100, 500);
+    if (input.afterSequence !== undefined) {
+      return this.database.sql`
+        select id, type, workspace_id, task_id, host_id, run_id, attempt_id,
+          codex_connection_id, capacity_source_id, sequence::int as sequence,
+          occurred_at, payload, idempotency_key, created_at, updated_at
+        from events
+        where (${input.workspaceId ?? null}::text is null or workspace_id = ${input.workspaceId ?? null})
+          and sequence > ${input.afterSequence}
+        order by workspace_id nulls first, sequence asc
+        limit ${limit}
+      `;
+    }
+
     return this.database.sql`
-      select id, type, workspace_id, task_id, host_id, run_id, attempt_id,
-        codex_connection_id, capacity_source_id, sequence::int as sequence,
-        occurred_at, payload, idempotency_key, created_at, updated_at
-      from events
-      where (${input.workspaceId ?? null}::text is null or workspace_id = ${input.workspaceId ?? null})
-        and sequence > ${input.afterSequence ?? -1}
-      order by workspace_id nulls first, sequence asc
-      limit ${Math.min(input.limit ?? 100, 500)}
+      select *
+      from (
+        select id, type, workspace_id, task_id, host_id, run_id, attempt_id,
+          codex_connection_id, capacity_source_id, sequence::int as sequence,
+          occurred_at, payload, idempotency_key, created_at, updated_at
+        from events
+        where (${input.workspaceId ?? null}::text is null or workspace_id = ${input.workspaceId ?? null})
+        order by occurred_at desc, sequence desc
+        limit ${limit}
+      ) recent
+      order by occurred_at asc, sequence asc
     `;
   }
 

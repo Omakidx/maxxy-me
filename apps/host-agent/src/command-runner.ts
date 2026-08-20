@@ -501,11 +501,11 @@ export class HostCommandRunner {
       return this.json({ removed: Boolean(removed) });
     }
     if (command === "codex.connection.disable") {
-      await this.registry.setStatus(input.codexConnectionId, "disabled");
+      await this.registry.disconnect(input.codexConnectionId);
       return this.reportConnection(input.codexConnectionId);
     }
     if (command === "codex.connection.reauthenticate") {
-      await this.registry.setStatus(input.codexConnectionId, "authenticating");
+      await this.registry.reauthenticate(input.codexConnectionId);
       return this.reportConnection(input.codexConnectionId);
     }
     if (command === "codex.connection.status") {

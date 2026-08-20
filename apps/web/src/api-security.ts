@@ -1071,12 +1071,11 @@ function hasScope(scopes: string[], requiredScope: string) {
 
 function buildWebSocketUrl(ticket: string) {
   const appUrl = new URL(process.env.APP_URL ?? "http://127.0.0.1:3000");
-  appUrl.protocol =
-    nodeEnv === "production"
+  appUrl.protocol = requiresSecureWebSocket()
+    ? "wss:"
+    : appUrl.protocol === "https:"
       ? "wss:"
-      : appUrl.protocol === "https:"
-        ? "wss:"
-        : "ws:";
+      : "ws:";
   appUrl.pathname = "/api/ws";
   appUrl.search = new URLSearchParams({ ticket }).toString();
   return appUrl.toString();
