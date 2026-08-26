@@ -1,0 +1,6 @@
+interface:
+  display_name: "Create Skill"
+  short_description: "Build a skill from a GitHub source or research"
+  default_prompt: "Use $create-skill to create a project-scoped Codex skill from my source URL or described purpose."
+policy:
+  allow_implicit_invocation: false
