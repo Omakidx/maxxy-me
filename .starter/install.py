@@ -31,7 +31,13 @@ def parse_args() -> argparse.Namespace:
             "Differing destination files are never overwritten."
         )
     )
-    parser.add_argument("target", type=Path, help="existing project directory")
+    parser.add_argument(
+        "target",
+        type=Path,
+        nargs="?",
+        default=Path.cwd(),
+        help="existing project directory (defaults to the current directory)",
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",

@@ -60,54 +60,24 @@ See [Architecture and routing](#architecture-and-routing) for how these pieces c
 - A Codex environment that supports project-scoped custom agents, skills, and multi-agent sessions.
 - Python 3.11 or newer for the installer and validation helpers.
 - A POSIX environment with no-follow, directory-relative file operations for the hardened installer.
-- An existing target project directory that you can write to.
+- An existing project directory that you can write to.
 
 External services are optional. Figma, Brave/direct web search, and Chrome capabilities are used only when they are available, authenticated where required, and relevant to the task. They are not bundled with this starter.
 
 ## Install safely
 
-Add the starter to an existing writable project in two steps:
+Add the starter to your existing project in two simple steps:
 
-1. Clone the starter and enter the cloned repository:
+1. Open a terminal in your existing project's root directory. No project path is needed: setup uses the directory you are already in.
 
-   ```bash
-   git clone https://github.com/Omakidx/maxxy-me.git
-   cd maxxy-me
-   ```
-
-2. Preview the installation, install the starter, and validate it. Replace `/absolute/path/to/your-project` with your existing project's absolute path:
+2. Copy and paste these commands:
 
    ```bash
-   python3 .starter/install.py /absolute/path/to/your-project --dry-run
-   python3 .starter/install.py /absolute/path/to/your-project
-   python3 .starter/validate.py
+   git clone --branch origin-skill --single-branch https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-me
+   /tmp/maxxy-me/setup.sh
    ```
 
-   Review the dry-run output before running the install command. Do not use `/` or your home directory as the target; the installer refuses both. It copies only `.codex` and `.agents`, skips identical files, and stops before writing if an existing file differs.
-
-The project now contains the following starter-owned structure:
-
-```text
-your-existing-project/
-├── .codex/
-│   ├── config.toml
-│   └── agents/
-└── .agents/
-    ├── LICENSE
-    └── skills/
-```
-
-### Direct-copy alternative
-
-Use this only when the target does not already contain `.codex` or `.agents`:
-
-```bash
-cp -R .codex .agents /absolute/path/to/your-project/
-```
-
-For a project with either directory already present, use the installer so conflicts are detected before anything is written. Review [Customization and safety](#customization-and-safety) before manually merging existing configuration.
-
-The validator checks agent registrations, skill structure, portability, and an isolated installation. Run it after every customization. Finally, open your project as the root of a new Codex task so Codex discovers its `.codex` configuration and `.agents` skills.
+   Setup installs only `.codex` and `.agents` into the project you have open, never replaces the project's root `LICENSE`, and stops before writing if it finds a conflicting file. When it finishes, reopen the project in a new Codex task and start using the agents and skills.
 
 ## Use the manager
 
