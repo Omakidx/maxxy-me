@@ -1,0 +1,6 @@
+interface:
+  display_name: "Agent Creator"
+  short_description: "Research, create, and refine custom agents"
+  default_prompt: "Use $agent-creator to create a narrowly scoped project agent and validate it with a realistic forward test."
+policy:
+  allow_implicit_invocation: false

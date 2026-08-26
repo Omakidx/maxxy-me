@@ -1,0 +1,57 @@
+[agents]
+max_concurrent_threads_per_session = 8
+
+[features]
+multi_agent = true
+
+[agents.manager_orchestrator]
+description = "Use as the primary manager for explicitly invoked complex repository tasks that require architecture, dependency-aware delegation, multi-agent integration, repair routing, and final validation; do not use for small single-surface work."
+config_file = "agents/manager_orchestrator.toml"
+
+[agents.architect]
+description = "Use for cross-system architecture, service boundaries, dependency sequencing, contracts, and high-impact technical tradeoffs before or during changes spanning multiple subsystems; do not use for routine isolated implementation."
+config_file = "agents/architect.toml"
+
+[agents.figma_engineer]
+description = "Use when a task starts from Figma URLs, node IDs, design-system assets, screenshots, or requires measured visual parity between a Figma design and production UI."
+config_file = "agents/figma_engineer.toml"
+
+[agents.frontend_engineer]
+description = "Use for React, Next.js, browser UI, component architecture, client state, accessibility, responsive behavior, design-system implementation, and frontend performance."
+config_file = "agents/frontend_engineer.toml"
+
+[agents.backend_engineer]
+description = "Use for APIs, authentication and authorization flows, server-side business logic, background jobs, service integrations, and backend reliability; pair with database_engineer for schema work."
+config_file = "agents/backend_engineer.toml"
+
+[agents.database_engineer]
+description = "Use for relational or document data modeling, schemas, migrations, indexes, query plans, transactional integrity, data backfills, and persistence performance."
+config_file = "agents/database_engineer.toml"
+
+[agents.test_engineer]
+description = "Use for test strategy, reproducible bug cases, unit/integration/E2E suites, regression coverage, flaky-test diagnosis, and independent acceptance validation."
+config_file = "agents/test_engineer.toml"
+
+[agents.security_reviewer]
+description = "Use for threat modeling and independent review of authentication, authorization, secrets, untrusted input, sensitive data, dependency exposure, and other security-critical changes."
+config_file = "agents/security_reviewer.toml"
+
+[agents.devops_engineer]
+description = "Use for CI/CD, containerization, infrastructure configuration, environment management, deployment workflows, release safety, observability, and production-readiness checks."
+config_file = "agents/devops_engineer.toml"
+
+[agents.agent_creator]
+description = "Use only when the task explicitly asks to research, design, create, register, evaluate, or refine project-scoped Codex custom agents or their companion skills; do not use for ordinary implementation or general orchestration."
+config_file = "agents/agent_creator.toml"
+
+[agents.skill_creator]
+description = "Use only when the user explicitly asks to create or update a project-scoped Codex skill from a specific public GitHub reference or a researched natural-language purpose; do not use for custom-agent creation or ordinary repository implementation."
+config_file = "agents/skill_creator.toml"
+
+[agents.plugin_builder]
+description = "Use only for explicitly requested Codex plugin design, source creation/update, or install/verification workflows. Source work defaults to repository-scoped artifacts; personal/global writes, installation, plaintext credential persistence, and live provider tests require separate explicit confirmation."
+config_file = "agents/plugin_builder.toml"
+
+[agents.docs_writer]
+description = "Use for creating, restructuring, or maintaining technical and product documentation in Markdown/MDX, HTML or HTMX-enhanced pages, AsciiDoc, reStructuredText, API specifications and references, code documentation, Word, PDF, and related documentation formats; do not use for product implementation whose primary deliverable is code."
+config_file = "agents/docs_writer.toml"
