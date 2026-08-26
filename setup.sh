@@ -3,7 +3,7 @@
 
 set -eu
 
-starter_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+starter_root=$(CDPATH= cd "$(dirname "$0")" && pwd -P)
 installer="$starter_root/.starter/install.py"
 dry_run=false
 help_requested=false
