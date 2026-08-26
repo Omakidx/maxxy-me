@@ -299,6 +299,26 @@ def validate_installer(source_root: Path) -> list[str]:
     installer = source_root / ".starter" / "install.py"
     if not installer.is_file():
         return [f"missing installer: {installer}"]
+    setup = source_root / "setup.sh"
+    if not setup.is_file():
+        return [f"missing setup wrapper: {setup}"]
+    if not setup.stat().st_mode & 0o111:
+        errors.append(f"setup wrapper is not executable: {setup}")
+    syntax = subprocess.run(
+        ["sh", "-n", str(setup)], capture_output=True, text=True, check=False
+    )
+    if syntax.returncode:
+        errors.append(f"setup wrapper has invalid POSIX shell syntax: {syntax.stderr.strip()}")
+
+    help_result = subprocess.run(
+        [sys.executable, str(installer), "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    help_text = help_result.stdout.lower()
+    if help_result.returncode or "[target]" not in help_text or "defaults to the current directory" not in help_text:
+        errors.append("installer help does not describe an optional current-directory target")
 
     with tempfile.TemporaryDirectory(prefix="codex-team-starter-") as temporary:
         temp_root = Path(temporary)
@@ -313,6 +333,93 @@ def validate_installer(source_root: Path) -> list[str]:
         )
         if dry.returncode or snapshot(dry_target) != before:
             errors.append("installer dry-run failed or changed the target")
+
+        no_argument_target = temp_root / "no-argument"
+        no_argument_target.mkdir()
+        no_argument = subprocess.run(
+            [sys.executable, str(installer)],
+            cwd=no_argument_target,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if no_argument.returncode:
+            errors.append(
+                f"zero-argument installation failed: {(no_argument.stderr or no_argument.stdout).strip()}"
+            )
+        else:
+            errors.extend(
+                f"zero-argument install: {error}"
+                for error in validate_core(no_argument_target)
+            )
+
+        wrapper_dry_target = temp_root / "wrapper-dry-run"
+        wrapper_dry_target.mkdir()
+        wrapper_dry_before = snapshot(wrapper_dry_target)
+        wrapper_dry = subprocess.run(
+            [str(setup), "--dry-run"],
+            cwd=wrapper_dry_target,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        wrapper_dry_output = wrapper_dry.stdout.lower()
+        if wrapper_dry.returncode or snapshot(wrapper_dry_target) != wrapper_dry_before:
+            errors.append("setup wrapper dry-run failed or changed its current directory")
+        elif "dry run complete" not in wrapper_dry_output:
+            errors.append("setup wrapper dry-run did not identify itself as a dry run")
+        elif "reopen this project in codex" in wrapper_dry_output:
+            errors.append("setup wrapper dry-run incorrectly printed the Codex reopen instruction")
+
+        wrapper_missing_target = temp_root / "missing-wrapper-target"
+        wrapper_failure = subprocess.run(
+            [str(setup), str(wrapper_missing_target)],
+            cwd=temp_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if wrapper_failure.returncode == 0:
+            errors.append("setup wrapper did not propagate a failed installer exit status")
+
+        wrapper_target = temp_root / "wrapper"
+        wrapper_target.mkdir()
+        wrapper = subprocess.run(
+            [str(setup)],
+            cwd=wrapper_target,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if wrapper.returncode:
+            errors.append(f"setup wrapper installation failed: {(wrapper.stderr or wrapper.stdout).strip()}")
+        elif "reopen this project in codex" not in wrapper.stdout.lower():
+            errors.append("setup wrapper did not print the Codex next step after success")
+        else:
+            errors.extend(
+                f"setup wrapper install: {error}"
+                for error in validate_core(wrapper_target)
+            )
+
+        wrapper_explicit_target = temp_root / "wrapper-explicit"
+        wrapper_explicit_target.mkdir()
+        wrapper_explicit = subprocess.run(
+            [str(setup), str(wrapper_explicit_target)],
+            cwd=temp_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if wrapper_explicit.returncode:
+            errors.append(
+                f"setup wrapper explicit-target forwarding failed: "
+                f"{(wrapper_explicit.stderr or wrapper_explicit.stdout).strip()}"
+            )
+        else:
+            errors.extend(
+                f"setup wrapper explicit target: {error}"
+                for error in validate_core(wrapper_explicit_target)
+            )
 
         install_target = temp_root / "install"
         install_target.mkdir()
@@ -488,6 +595,7 @@ def main() -> int:
         root / "LICENSE",
         root / ".agents" / "LICENSE",
         root / ".starter" / "install.py",
+        root / "setup.sh",
     )
     for path in required_package_files:
         if not path.is_file():
