@@ -66,7 +66,7 @@ External services are optional. Figma, Brave/direct web search, and Chrome capab
 
 ## Install safely
 
-Use the following path when adding the starter to an existing writable project.
+Add the starter to an existing writable project in two steps:
 
 1. Clone the starter and enter the cloned repository:
 
@@ -75,30 +75,17 @@ Use the following path when adding the starter to an existing writable project.
    cd maxxy-me
    ```
 
-2. Set `target_project` to the absolute path of the existing project that should receive the starter. Confirm that it is a writable directory before continuing:
+2. Preview the installation, install the starter, and validate it. Replace `/absolute/path/to/your-project` with your existing project's absolute path:
 
    ```bash
-   target_project=/absolute/path/to/your-existing-project
-   test -d "$target_project" && test -w "$target_project"
+   python3 .starter/install.py /absolute/path/to/your-project --dry-run
+   python3 .starter/install.py /absolute/path/to/your-project
+   python3 .starter/validate.py
    ```
 
-   Do not use `/` or your home directory as the target; the installer refuses both. Create the project first if it does not already exist.
+   Review the dry-run output before running the install command. Do not use `/` or your home directory as the target; the installer refuses both. It copies only `.codex` and `.agents`, skips identical files, and stops before writing if an existing file differs.
 
-3. Preview the changes. This checks for conflicts and prints the files that would be added without modifying the target:
-
-   ```bash
-   python3 .starter/install.py "$target_project" --dry-run
-   ```
-
-4. If the preview reports no conflicts and the planned files are correct, install the starter:
-
-   ```bash
-   python3 .starter/install.py "$target_project"
-   ```
-
-   The installer copies only `.codex` and `.agents`, including `.agents/LICENSE`. It skips byte-identical destination files, checks all destination paths before writing, and aborts without changes if any existing file differs. It never deletes target files and never replaces the target project's root license.
-
-The target now contains the following starter-owned structure:
+The project now contains the following starter-owned structure:
 
 ```text
 your-existing-project/
@@ -115,30 +102,12 @@ your-existing-project/
 Use this only when the target does not already contain `.codex` or `.agents`:
 
 ```bash
-cp -R .codex .agents "$target_project"/
+cp -R .codex .agents /absolute/path/to/your-project/
 ```
 
 For a project with either directory already present, use the installer so conflicts are detected before anything is written. Review [Customization and safety](#customization-and-safety) before manually merging existing configuration.
 
-## Validate the starter
-
-From the cloned starter repository, validate the starter package and its isolated installation checks:
-
-```bash
-python3 .starter/validate.py
-```
-
-Validation parses the TOML configuration, checks agent registrations and skill structure, scans for portability problems, and simulates installation into an isolated temporary project. Run it after every customization.
-
-Then confirm the essential files were added to the project you selected:
-
-```bash
-test -f "$target_project/.codex/config.toml" \
-  && test -f "$target_project/.agents/skills/manager-orchestrator/SKILL.md" \
-  && printf 'Starter installed in %s\n' "$target_project"
-```
-
-Open `target_project` as the root of a new Codex task. Codex then discovers the project's `.codex` configuration and `.agents` skills.
+The validator checks agent registrations, skill structure, portability, and an isolated installation. Run it after every customization. Finally, open your project as the root of a new Codex task so Codex discovers its `.codex` configuration and `.agents` skills.
 
 ## Use the manager
 
