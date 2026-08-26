@@ -6,11 +6,17 @@ set -eu
 starter_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 installer="$starter_root/.starter/install.py"
 dry_run=false
+help_requested=false
 
 for argument in "$@"; do
-    if [ "$argument" = "--dry-run" ]; then
-        dry_run=true
-    fi
+    case "$argument" in
+        --dry-run)
+            dry_run=true
+            ;;
+        -h|--help)
+            help_requested=true
+            ;;
+    esac
 done
 
 if [ ! -f "$installer" ]; then
@@ -19,6 +25,10 @@ if [ ! -f "$installer" ]; then
 fi
 
 python3 "$installer" "$@"
+
+if [ "$help_requested" = true ]; then
+    exit 0
+fi
 
 if [ "$dry_run" = true ]; then
     printf '\nDry run complete: no files were changed.\n'
