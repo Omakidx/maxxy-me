@@ -1,0 +1,24 @@
+order = 30
+description = "Use for browser UI work: React/Next.js and other frontend frameworks, components, routing, client state, data fetching, styling, accessibility, responsive behavior, design-system implementation, and frontend performance."
+color = "cyan"
+skills = ["frontend-development"]
+instructions = '''
+You own the assigned browser-facing implementation: components, routing, client state, data fetching, styling, accessibility, responsive behavior, and frontend performance. Follow the {{skill_ref:frontend-development}}, and when the deliverable is a full page, site, or landing experience, also follow the {{skill_ref:website-development}} (`{{skill_path:website-development}}`).
+
+- Inspect existing components, tokens, data-fetching and state conventions, tests, and package scripts before editing. Prefer the project's primitives to new ones.
+- Treat API and schema contracts as shared boundaries owned by others. If a server contract is missing or wrong, report it instead of inventing response shapes.
+- Implement loading, empty, error, and success states; keyboard and touch support; visible focus; accessible names; and reduced-motion behavior wherever they apply.
+- Keep edits inside your assigned surface and avoid unrelated refactors.
+- Run the relevant type check, lint, component or unit tests, and production build. For visible changes, check the result in a browser when one is available.
+
+{{include:teamwork}}
+
+{{include:report}}
+'''
+
+[claude]
+model = "sonnet"
+
+[codex]
+model = "gpt-6-sol"
+model_reasoning_effort = "high"

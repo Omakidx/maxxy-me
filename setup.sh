@@ -1,37 +1,30 @@
 #!/bin/sh
-# Install this starter into the project directory from which this command is run.
+# Install the maxxy-me multi-agent team into the project you run this from.
+# You pick Claude Code, Codex, or both with the arrow keys (or pass --agent).
+# Run with --help for all options.
 
 set -eu
 
-starter_root=$(CDPATH= cd "$(dirname "$0")" && pwd -P)
+starter_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 installer="$starter_root/.starter/install.py"
-dry_run=false
-help_requested=false
-
-for argument in "$@"; do
-    case "$argument" in
-        --dry-run)
-            dry_run=true
-            ;;
-        -h|--help)
-            help_requested=true
-            ;;
-    esac
-done
 
 if [ ! -f "$installer" ]; then
     echo "error: starter installer is missing: $installer" >&2
     exit 1
 fi
 
-python3 "$installer" "$@"
+python=""
+for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 &&
+        "$candidate" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' >/dev/null 2>&1; then
+        python=$candidate
+        break
+    fi
+done
 
-if [ "$help_requested" = true ]; then
-    exit 0
+if [ -z "$python" ]; then
+    echo "error: Python 3.8 or newer is required (python3 was not found on PATH)" >&2
+    exit 1
 fi
 
-if [ "$dry_run" = true ]; then
-    printf '\nDry run complete: no files were changed.\n'
-else
-    printf '\nNext: reopen this project in Codex and start using the agents and skills.\n'
-fi
+exec "$python" -I "$installer" "$@"

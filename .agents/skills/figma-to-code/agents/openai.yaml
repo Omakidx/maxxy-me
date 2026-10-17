@@ -1,0 +1,4 @@
+interface:
+  display_name: "Figma to Code"
+  short_description: "Build UI from Figma with measured parity"
+  default_prompt: "Use $figma-to-code to implement this Figma node in our existing component system:"

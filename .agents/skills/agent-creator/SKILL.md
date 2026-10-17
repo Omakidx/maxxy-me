@@ -1,68 +1,73 @@
 ---
 name: agent-creator
-description: Create or refine project-scoped Codex custom agents when explicitly requested, using current research, least-privilege design, deterministic validation, and output-driven iteration.
+description: "Create or refine project-scoped Codex custom agents when explicitly requested, using a written role contract, targeted research, least-privilege design, deterministic validation, and output-driven refinement."
 ---
 
 # Agent Creator
 
-Create one useful, discoverable project role—or improve an existing one—without expanding the team speculatively. Treat the user's requested agent outcome as the authority. Agent creation does not authorize global configuration changes, plugin installation, credential handling, deployment, or unrelated repository edits.
+Create one useful, reliably routable project agent, or improve an existing one, without growing the team speculatively. The user's requested outcome is the authority. Creating an agent does not authorize global configuration changes, plugin installation, credential handling, deployment, or unrelated edits.
 
-## Establish the role contract
+## 1. Establish the role contract
 
-Resolve the repository root, then inspect the full request, repository structure, applicable `AGENTS.md` files, `.codex/config.toml`, registered role descriptions, and relevant `.codex/agents/*.toml` files. Check the project skill catalog before adding a companion skill. Keep discovery within that root; use hidden-aware searches such as `rg --hidden --files` so `.codex` and `.agents` are included, and never scan parent or sibling directories.
+Resolve the repository root. Then inspect the request, the repository, the applicable `AGENTS.md` files, `.codex/config.toml` with its registered role descriptions, the relevant `.codex/agents/*.toml` files, and the skill catalog in `.agents/skills`. Use hidden-aware searches (for example `rg --hidden --files`) so dot-directories are included, and never scan outside the repository root.
 
-Define these acceptance criteria before editing:
+Write these acceptance criteria before editing:
 
-- requests that should and should not route to the role
-- owned decisions, artifacts, and allowed mutations
-- required inputs and result format
-- trust boundaries, approval points, and least-privilege sandbox
-- model and reasoning level justified by task difficulty
-- reusable skill or research/tool dependencies, if any
+- at least three requests that should route to the role and three that should not
+- the decisions, artifacts, and mutations the role owns
+- required inputs and the report format
+- trust boundaries, approval points, and least-privilege tool access
+- the model and reasoning effort, justified by the difficulty of the work
+- reusable skills or research and tool dependencies, if any
 - static checks and a realistic forward-evaluation prompt
 
-Prefer refining an existing agent when its core responsibility already matches. Create a new role only when the responsibility is durable, distinct, and discriminating enough for a parent orchestrator to route reliably.
+Prefer refining an existing agent when its core responsibility already matches. Create a new one only when the responsibility is durable, distinct, and discriminating enough for a manager to route to it reliably.
 
-## Research current practice
+## 2. Research only what is uncertain
 
-Research only questions whose answers are current, uncertain, or consequential to the role design.
+Research questions whose answers are current, uncertain, or consequential to the design, such as current Codex agent configuration fields or the behavior of a tool the role depends on.
 
-1. When callable, prefer the Brave Search plugin's `search_web` tool for general technical research. Use `search_news`, `search_images`, or `search_videos` only when that media type directly affects the requested role.
-2. Prioritize official product documentation, primary specifications, maintainers' documentation, and original research. Cross-check consequential claims with a second independent primary source when practical.
-3. If Brave tools are not callable or authentication is missing, use another available direct web-search tool and state the fallback in the evaluation record. If no search capability is available, record that limitation and avoid claims that require current external verification.
-4. Use Chrome only when it is available and a page requires interactive, authenticated, JavaScript-rendered, or visual inspection. Follow its skill when present, and do not use browser automation when a direct API or connector can retrieve the evidence.
-5. Record the URL, publication/update date when available, claim supported, and any uncertainty. Do not copy long source passages into agent instructions.
+1. Use a callable web-search tool (Brave Search tools when available, otherwise the built-in search). Prefer official product documentation, specifications, and maintainer sources, and cross-check consequential claims.
+2. Use browser automation only when the evidence needs interaction, authentication, JavaScript rendering, or visual inspection.
+3. Record the URL, date, claim supported, and any uncertainty. Do not paste long source passages into agent instructions.
+4. If no search capability is available, record the limitation and avoid claims that need current verification.
 
-Never write `BRAVE_SEARCH_API_KEY` or any credential into the repository. When a search plugin is used, its configured environment owns authentication.
+Never write `BRAVE_SEARCH_API_KEY` or any other credential into the repository or your output.
 
-## Design and implement
+## 3. Design and implement
 
-Add a discriminating `[agents.<name>]` registration to `.codex/config.toml` and resolve its `config_file` beneath `.codex/agents/`. Preserve every unrelated setting and existing invocation policy.
+Add a discriminating `[agents.<name>]` registration (snake_case) to `.codex/config.toml` with a `description` and `config_file = "agents/<name>.toml"`, preserving every unrelated setting. In the role file, set:
 
-The role file should normally specify:
+- `name` and `description`, matching the registration;
+- a supported `model` and an intentional `model_reasoning_effort`. For example, use `gpt-6.1-sol` for hard reasoning, `gpt-6-sol` for implementation, and `gpt-6-luna` for fast, bounded work, and check the current model catalog first;
+- `developer_instructions` covering ownership, inspection steps, workflow, constraints, collaboration boundaries, validation, and the report format.
 
-- a supported model and intentional `model_reasoning_effort`
-- the least-privileged `sandbox_mode`
-- focused `developer_instructions` covering ownership, inspection, workflow, constraints, collaboration boundaries, validation, and result evidence
+Current Codex applies only the model, reasoning, and instruction settings from a role file. Subagents inherit the parent's sandbox and approval settings, so state any read-only or no-delegation policy in `developer_instructions` (you may also keep `sandbox_mode` for older Codex builds). An unknown key makes Codex skip the entire role.
 
-Keep the description precise enough that the manager can choose the role without opening its file. Avoid overlapping ownership, catch-all descriptions, generic persona language, hard-coded secrets, absolute machine-specific paths, and instructions that silently broaden authorization.
+Avoid overlapping ownership, catch-all descriptions, generic persona prose, hard-coded secrets, machine-specific absolute paths, and instructions that silently broaden authorization. Create a companion skill only when the agent needs a reusable workflow that changes its decisions, and build it with `.agents/skills/create-skill/SKILL.md`. Update `manager-orchestrator` routing only when the manager should select the new role.
 
-Create a companion skill only when the agent needs a reusable workflow that changes decisions. Follow the system Skill Creator instructions, use progressive disclosure, and keep automatic versus explicit invocation aligned with the user's request. Update `manager-orchestrator` routing only when the new role should be selectable by that manager.
+## 4. Validate and improve from output
 
-## Validate and improve from output
+Run the bundled validator against the changed role:
 
-Run `python3 .agents/skills/agent-creator/scripts/validate_project_agents.py --root <repository> --agent <name> --strict-codex` and the Skill Creator validator for every new or changed skill. The helper must confirm Codex loads the strict project configuration and resolves the registered role file.
+```bash
+python3 .agents/skills/agent-creator/scripts/validate_project_agents.py --platform codex --root . --agent <name>
+```
 
-Forward-test the role with a realistic, bounded prompt in an isolated temporary workspace. Do not tell the evaluating agent the intended answer. Score the actual artifacts and response against:
+When the Codex CLI is available, add `--codex-doctor`. It loads the project in an isolated, trusted Codex home and fails on any startup warning, such as a malformed or skipped role.
+
+Forward-test the role with a realistic, bounded prompt in an isolated temporary copy of the repository, without telling the evaluated agent the intended answer. Run it in a fresh Codex task rooted in the temporary copy. A forward test spends the user's model quota, so confirm before running it. As a delegated specialist, return the forward-test prompt to the manager instead of running it. Score the actual artifacts and report against:
 
 - correct routing and responsibility boundaries
-- compliance with acceptance criteria and repository instructions
-- least-privilege and approval behavior
+- compliance with the acceptance criteria and repository instructions
+- least privilege and approval behavior
 - correct, minimal tool use and evidence quality
-- artifact correctness, validation, and result completeness
+- artifact correctness, validation, and report completeness
 
-Use an independent reviewer when the role is complex, security-sensitive, or can create other agents. Turn each material failure into one narrow correction, then rerun the same evaluation so the comparison is meaningful. Do not accumulate speculative rules from one-off preferences.
+Use an independent reviewer (requested through the manager when you are delegated) when the role is complex, security-sensitive, or able to create other agents. Turn each material failure into one narrow correction and rerun the same evaluation so the results stay comparable. Do not accumulate speculative rules from one-off preferences.
 
-Repeat until the target passes or a genuine blocker remains. By default, stop after three measured refinement cycles; request direction before expanding cost, time, privileges, or external side effects. If the evidence exposes a flaw in this creator itself, report a minimal proposed change. Modify this creator's own role or skill only when the user explicitly authorizes self-improvement, and obtain independent review before accepting it.
+Stop after three measured refinement cycles by default, and ask before expanding cost, time, privileges, or side effects. If the evidence exposes a flaw in this creator itself, propose a minimal change; edit this creator only with the user's explicit authorization, followed by an independent review.
 
-Report the role contract, files changed, research sources, evaluation prompt and evidence, corrections made across iterations, final validation, and residual limitations.
+## 5. Report
+
+Return the role contract, files changed, research sources, evaluation prompts and evidence, corrections made in each iteration, final validation results, and residual limitations.
