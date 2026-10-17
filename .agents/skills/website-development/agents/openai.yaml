@@ -1,0 +1,4 @@
+interface:
+  display_name: "Website Development"
+  short_description: "Build complete pages and landing experiences"
+  default_prompt: "Use $website-development to build this page end to end:"

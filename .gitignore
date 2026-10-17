@@ -2,3 +2,8 @@ __pycache__/
 *.py[cod]
 .DS_Store
 .pytest_cache/
+
+# Local Claude Code state for people working on this repository (never part of the payload).
+.claude/settings.local.json
+.claude/agent-memory/
+.claude/worktrees/

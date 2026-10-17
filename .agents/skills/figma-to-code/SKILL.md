@@ -1,22 +1,40 @@
 ---
 name: figma-to-code
-description: Implement a supplied Figma design or node in an existing frontend with measured visual parity, project-native components, responsive behavior, and accessibility.
+description: "Implement a supplied Figma design, node, or visual specification in an existing frontend with measured visual parity, project-native components and tokens, responsive behavior, and accessibility."
 ---
 
 # Figma to Code
 
-## Acquire the source of truth
+## 1. Acquire the source of truth
 
-Identify the exact Figma file, page, node, variants, and target viewport. When a Figma connector or MCP is callable, fetch design context and a screenshot for the exact node before coding. Retrieve only the assets and component details needed for the assigned surface. If no integration is callable, use supplied screenshots/specifications and state which measurements or variants cannot be verified.
+- Identify the exact Figma file, page, node, variants, and target viewport. Ask for a node link when you only have a file or page and the target is ambiguous.
+- When a Figma MCP server or connector is available, fetch the design context (layout, styles, variables, component properties) and a screenshot of the exact node before coding. Retrieve only the assets and component details the assigned surface needs.
+- Without Figma access, work from supplied screenshots and specifications, and list the measurements, states, and variants you cannot verify.
 
-## Map before implementing
+## 2. Map before implementing
 
-Inspect the repository's framework, component library, tokens, fonts, asset conventions, breakpoints, and applicable `AGENTS.md` files. Map Figma colors, type, spacing, radii, effects, and reusable structures to existing tokens and components. Treat generated Figma code as reference data, not production architecture.
+- Inspect the repository's framework, component library, design tokens, fonts, asset pipeline, breakpoints, and applicable `AGENTS.md` files.
+- Map Figma colors, typography, spacing, radii, shadows, and reusable structures to existing tokens and components. Add a token or component only when nothing existing fits, and say why.
+- Treat generated Figma code as reference data, not production architecture.
+- Define the component boundary, its props and states (hover, focus, active, disabled, loading, empty, error), responsive rules, asset handling, and interactions. Resolve unclear behavior from sibling variants or project conventions without inventing product scope.
 
-Define the component boundary, states, responsive rules, asset handling, and expected interactions. Resolve unclear behavior from nearby variants or project conventions without inventing new product scope.
+## 3. Implement
 
-## Implement and verify
+- Build the smallest reusable component structure that preserves the design.
+- Use semantic HTML, keyboard-operable controls, visible focus, accessible names, sufficient contrast, and reduced-motion handling, even where the design is silent.
+- Use the supplied assets. Never approximate real icons or imagery with improvised replacements when source assets exist; export them at the right density and format.
 
-Build the smallest reusable component structure that preserves the design. Use semantic HTML, keyboard-operable controls, visible focus, accessible names, and reduced-motion handling. Preserve supplied assets; do not approximate real icons or imagery with improvised replacements when source assets exist.
+## 4. Verify parity
 
-Validate the target viewport first, then required responsive sizes and interaction states. Compare layout, typography, spacing, colors, borders, imagery, overflow, and component states against the source. Run relevant type, lint, component, and build checks. Report parity, intentional deviations, and anything blocked by unavailable Figma context.
+- Check the target viewport first, then each required breakpoint and interaction state.
+- Compare layout, typography, spacing, colors, borders, imagery, overflow, and states against the source screenshot. Side-by-side screenshots are the most reliable check when a browser is available.
+- Run the relevant type, lint, component, and build checks.
+
+## Definition of done
+
+- [ ] The node and viewport are identified, and the design context was fetched or its absence stated
+- [ ] Tokens and components are reused; any new ones are justified
+- [ ] All required states and breakpoints are implemented and checked
+- [ ] Accessibility basics hold (semantics, keyboard, focus, names, contrast, reduced motion)
+- [ ] Parity is checked, with intentional deviations and asset provenance reported
+- [ ] Type, lint, and build checks pass

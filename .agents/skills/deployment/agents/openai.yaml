@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deployment"
+  short_description: "Prepare reproducible, rollback-safe releases"
+  default_prompt: "Use $deployment to prepare this release or pipeline change:"

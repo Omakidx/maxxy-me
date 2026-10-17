@@ -1,0 +1,4 @@
+interface:
+  display_name: "Database Design"
+  short_description: "Evolve schemas and migrations safely"
+  default_prompt: "Use $database-design to design this schema or migration change:"

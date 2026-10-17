@@ -1,0 +1,44 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the manifest-history and legacy-upgrade tests read git history
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Static validation
+        run: python .starter/validate.py
+      - name: Unit, contract, and integration tests
+        run: python -m unittest discover -s tests -v
+
+  installer-python38:
+    name: installer on Python 3.8
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python 3.8 with uv
+        run: python -m pip install uv && uv python install 3.8
+      - name: Installer unit and integration tests
+        run: uv run --no-project --python 3.8 python -m unittest discover -s tests -v

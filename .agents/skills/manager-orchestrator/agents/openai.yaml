@@ -1,2 +1,6 @@
+interface:
+  display_name: "Manager Orchestrator"
+  short_description: "Plan, delegate, integrate, and validate team work"
+  default_prompt: "Use $manager-orchestrator to deliver this objective with the smallest effective specialist team:"
 policy:
   allow_implicit_invocation: false

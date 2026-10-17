@@ -1,20 +1,34 @@
 ---
 name: frontend-development
-description: Implement a bounded frontend feature or component in an existing web application with correct state, contracts, accessibility, responsiveness, and focused validation.
+description: "Implement a bounded frontend feature or component in an existing web application with correct state management, server contracts, accessibility, responsiveness, and focused validation."
 ---
 
 # Frontend Development
 
-## Understand the surface
+## 1. Understand the surface
 
-Inspect the assigned route/components, shared design system, data-fetching and state conventions, tests, and applicable `AGENTS.md` instructions. Translate acceptance criteria into visible states, user actions, data dependencies, and failure behavior. Confirm server contracts before coding; do not invent incompatible response shapes.
+- Inspect the assigned routes and components, the shared design system, the data-fetching and state conventions, the tests, and the applicable `AGENTS.md` files.
+- Translate the acceptance criteria into visible states, user actions, data dependencies, and failure behavior.
+- Confirm server contracts (request and response shapes, error formats, auth requirements) before coding. If a contract is missing or inconsistent, report it; do not invent an incompatible shape.
 
-## Implement
+## 2. Implement
 
-Choose the smallest component and state boundaries that fit existing architecture. Reuse primitives and tokens. Keep state derived where possible, side effects explicit, and async work resilient to loading, empty, retry, cancellation, and stale-response cases as relevant.
+- Choose the smallest component and state boundaries that fit the existing architecture. Reuse primitives and tokens.
+- Derive state instead of duplicating it; keep side effects explicit; handle loading, empty, error, retry, cancellation, and stale-response cases for async work where they apply.
+- Use semantic elements and native controls. Support keyboard and touch, visible focus, accessible names and live announcements, responsive layout, text zoom, and reduced motion.
+- Guard against injection: never render untrusted HTML without the project's sanitizer.
+- Avoid unrelated refactors, and keep shared-file edits within your assigned ownership.
 
-Use semantic elements and native controls. Support keyboard and touch, visible focus, accessible names and announcements, responsive layout, text zoom, and reduced motion. Avoid unrelated refactors and keep shared-file edits within assigned ownership.
+## 3. Verify
 
-## Verify
+- Add focused tests at the lowest useful layer (logic, then component, then E2E only for critical flows).
+- Run the relevant type check, lint, component tests, and production build.
+- Exercise the main path and the important error and boundary states, in a browser when one is available.
 
-Add focused tests at the lowest useful layer. Run relevant type checks, linting, component tests, and production build. Verify the main path plus important error and boundary states. Report contract assumptions, files owned, checks run, and remaining risk.
+## Definition of done
+
+- [ ] All acceptance-criteria states are implemented, including loading, empty, and error
+- [ ] Server contracts are confirmed or mismatches reported
+- [ ] Keyboard, focus, accessible names, and responsive layout work
+- [ ] Tests cover the new behavior; type, lint, test, and build checks pass
+- [ ] The report lists contract assumptions, files owned, checks run, and remaining risk

@@ -1,0 +1,206 @@
+{
+  "name": "maxxy-me",
+  "version": "4.0.0",
+  "platforms": {
+    "claude": {
+      "label": "Claude Code",
+      "owned": [
+        ".claude/agents/",
+        ".claude/skills/",
+        ".claude/maxxy-me/"
+      ],
+      "optional": [],
+      "files": {
+        ".claude/agents/agent-creator.md": "b79054eef5c6615e554a84909927c919240234f9f3de4df7439e6635cc818e15",
+        ".claude/agents/architect.md": "3bbad831a1e9dc1bb5faee683d8b5a34d15fb06c7973c5992dd0d84c41f73e08",
+        ".claude/agents/backend-engineer.md": "612b865ea7796bc89aac3ec44979b41a5ef0f362848448914a74a4091df008f9",
+        ".claude/agents/code-reviewer.md": "b8d82e29f4d410a9d07b16ee49e3b143718eb824227468c6eac261dda0c3f554",
+        ".claude/agents/database-engineer.md": "c0150924ac94d21c1eb36adcdc1fc4428c1f9ba6998e1e1880b37bef893df3cf",
+        ".claude/agents/devops-engineer.md": "02d3e857c5e06f66c8f7208ec1d39fe0904b496840a2fed898a47dfa6d5689b1",
+        ".claude/agents/docs-writer.md": "ca99d35421d39cf76249db72fe9672a4518a3eac24b0be87201bdb88691201ad",
+        ".claude/agents/figma-engineer.md": "162522d4a7a151d7a0d9d0cd3be5b4daf6cb13c56e63f31e07232e14275cf169",
+        ".claude/agents/frontend-engineer.md": "1b81111cd68a751eec3126d3d70bdf5d6c2233984980fb9f3e6793aebb62e8e0",
+        ".claude/agents/plugin-builder.md": "a1ec98af0702bb4de18927c996afb33f36a0a0da87f981e84eb3ae689abdf193",
+        ".claude/agents/security-reviewer.md": "19230aa0a637e38d925558e14b3629ce3c4ec35c7955f0c8103539c49b126a81",
+        ".claude/agents/skill-creator.md": "6f086a4e3fd0c6ca6d96fd62bcb95b1c8c692e4d463f906a91740ca3e8dcc88d",
+        ".claude/agents/test-engineer.md": "e27daf99c0c47becd1de83e04c75386af9239a98239da42f95ffff8e7c22f587",
+        ".claude/maxxy-me/LICENSE": "84b4090e7ec605c1b01835494268df549abc33d74d106c14a096fbc3197f47d6",
+        ".claude/skills/agent-creator/SKILL.md": "803bcbf218ffa77341129f91bb53448b4f299134016d09bf29b22954e43426e6",
+        ".claude/skills/agent-creator/scripts/validate_project_agents.py": "5a0c1ea12a37b0e9f0516f28faf8536da140a7c65ef1fd1738fbd2bdbd49bfa7",
+        ".claude/skills/backend-development/SKILL.md": "1c6c9a2b61fa9d32389a4e5d9a4a86ba640da3404c3c8a924729192bc55d132d",
+        ".claude/skills/create-skill/SKILL.md": "9bf7fccbdfd33563f8db5f7382ae77cdc60638b4af1786b0c6246865b974dda8",
+        ".claude/skills/create-skill/references/github-reference.md": "c638eeff57b30ece06240b981ef956c8f8897a296cec985611f163140dc5f00f",
+        ".claude/skills/create-skill/references/purpose-research.md": "3fefa2b3449fbf168b10d1e47540d0191276024b42fef4ec5bf5849f5ffe3cad",
+        ".claude/skills/database-design/SKILL.md": "9e7c3ccd7d3e2377863c7cbf44eb4cabde3226b4d5f539e3ef4ab0bab0a7d58f",
+        ".claude/skills/deployment/SKILL.md": "ad5f6c2d004290bd93a39e98baabb95d5fb455373eeb0cf6efa654b2ffd350ec",
+        ".claude/skills/documentation-authoring/SKILL.md": "9952887435f0cd04a963a2754f795c7c4dcf1741e8891406b09616716d406815",
+        ".claude/skills/documentation-authoring/references/format-routing.md": "5a06e46113cb5d99129098b35e12f5aa2680a155809c422fab37f89b0b31bc93",
+        ".claude/skills/figma-to-code/SKILL.md": "d004a5323487449063dedbe66d819d98076cef0aafaead25b30d5de533619369",
+        ".claude/skills/frontend-development/SKILL.md": "109facf6d8860f79c5abe8b137e0fbe71b82b34dc11e6289dbb5f6cfee4a2085",
+        ".claude/skills/manager-orchestrator/SKILL.md": "680aff6c71892228e3f25eb2478f17e846f5f72aefeae9079d1a99aef8b2a116",
+        ".claude/skills/security-audit/SKILL.md": "d1a00c53c79f6810c9f23d0006d39a4809b170a026de33575bf2109179e5b59a",
+        ".claude/skills/testing/SKILL.md": "464f2f6754aaadca7952eb29b22fcf21826d96991bc809f3adad50d34fb85b2a",
+        ".claude/skills/website-development/SKILL.md": "9d146aea6f27f0cf2ab19105134eb2820c241a16372f0e00389708f9ef33d4f2"
+      }
+    },
+    "codex": {
+      "label": "Codex",
+      "owned": [
+        ".codex/config.toml",
+        ".codex/agents/",
+        ".agents/skills/",
+        ".agents/LICENSE"
+      ],
+      "optional": [
+        ".codex/config.toml"
+      ],
+      "files": {
+        ".agents/LICENSE": "84b4090e7ec605c1b01835494268df549abc33d74d106c14a096fbc3197f47d6",
+        ".agents/skills/agent-creator/SKILL.md": "a29a66bd065be93ad2c678862f389ac4d0b9fc70940bdd8ed1bf37e34a2783be",
+        ".agents/skills/agent-creator/agents/openai.yaml": "517428b42f2740ec88ef74ceed2f0cebfac7ca1437d1223c6bcdd660822c3ea7",
+        ".agents/skills/agent-creator/scripts/validate_project_agents.py": "5a0c1ea12a37b0e9f0516f28faf8536da140a7c65ef1fd1738fbd2bdbd49bfa7",
+        ".agents/skills/backend-development/SKILL.md": "d6004878e096761d0117847ec6c03c9d0b89d3304b8eb0d17fd2e7328caae542",
+        ".agents/skills/backend-development/agents/openai.yaml": "f7a8054a75fa9485e0fdf40a3221c03f06cee24ec19691dd52b50730b7400bba",
+        ".agents/skills/create-skill/SKILL.md": "ac660d2a5500f43bde2e9e4d9c1a04c51dc441d78a9b9da319d7b4909352e9b7",
+        ".agents/skills/create-skill/agents/openai.yaml": "19e5df47bb5dbcf3c4fc41d54a496b38ef052d06600b0165198fcf1ee82f2b11",
+        ".agents/skills/create-skill/references/github-reference.md": "0225d120aa9dc01a0ba5125144de4d21afd28cdb801a736c9123577c2cd81594",
+        ".agents/skills/create-skill/references/purpose-research.md": "3fefa2b3449fbf168b10d1e47540d0191276024b42fef4ec5bf5849f5ffe3cad",
+        ".agents/skills/database-design/SKILL.md": "92ad8b85f1d3c1ef5f1bd229adcdd197335459406131bfd49265097e73119f62",
+        ".agents/skills/database-design/agents/openai.yaml": "675ecc657e2d1d112dffff7a7567c3cd3068b1b1aaf0df3d30bb68ecb4e1e37f",
+        ".agents/skills/deployment/SKILL.md": "8d7cdd8f9e994d374804f6e861d65a5048fc4e86ddf2bbe7def50a1b74754db6",
+        ".agents/skills/deployment/agents/openai.yaml": "1787df7eed7ba5b9bc902ec8a2858a0f3f60f330b4210af7f05a267307321c53",
+        ".agents/skills/documentation-authoring/SKILL.md": "d75c1a4a0a9c3900363fb672b6086baa3e405b06118888631b9981fd0553a36c",
+        ".agents/skills/documentation-authoring/agents/openai.yaml": "a0d898b1cfef6fe66ae71ad7ff73ba34ca2dd1fd5f08df04aacfc2e01004090b",
+        ".agents/skills/documentation-authoring/references/format-routing.md": "5a06e46113cb5d99129098b35e12f5aa2680a155809c422fab37f89b0b31bc93",
+        ".agents/skills/figma-to-code/SKILL.md": "3a5a209205a5c6ae768c6ba773f0ba8c80c8d861843457da8a574803235b9427",
+        ".agents/skills/figma-to-code/agents/openai.yaml": "7ff6ba0d58e31fbf056ddcf6893e30c1fb28561a41721199a126ab611832064f",
+        ".agents/skills/frontend-development/SKILL.md": "ea7faa8f0d8db053262c1696d234d1c825b0d6108626f24f9dccd791653b9277",
+        ".agents/skills/frontend-development/agents/openai.yaml": "c26f395f0529ed947ff2ef0a4f0612e9b24eff02b537a175f65327f92713f9df",
+        ".agents/skills/manager-orchestrator/SKILL.md": "e9b9a21c9425f21b6f5d607f8e0910a97dec0177de4f6ba0ac5f9e357b12e528",
+        ".agents/skills/manager-orchestrator/agents/openai.yaml": "2af10ffafc9953f305eee50a7570503d2630658182e9c71fa37c6bdb2add6dc8",
+        ".agents/skills/security-audit/SKILL.md": "0ae4ad6804f71eabdb7af7636146fd9e32ee4d23f8eaca95819ab436969904f1",
+        ".agents/skills/security-audit/agents/openai.yaml": "a8215f9a7a03a1faf64e76624403b1278753cc35b6e8dfeb1b15c8c21eb9ed30",
+        ".agents/skills/testing/SKILL.md": "464f2f6754aaadca7952eb29b22fcf21826d96991bc809f3adad50d34fb85b2a",
+        ".agents/skills/testing/agents/openai.yaml": "939a18489e968f2eea8883c0f6da06239c299cdd7ae330ef064fd7de3634abc3",
+        ".agents/skills/website-development/SKILL.md": "35c02a99122426c4f767a2c4592db1648836f204ef7d27852adaaf9a63f16a08",
+        ".agents/skills/website-development/agents/openai.yaml": "d652e9ac6555c7a846cd2f6e32f7146b566e052fe13d016de2f0c315159a0cfa",
+        ".codex/agents/agent_creator.toml": "50855e9ad72d63e32a51fbab1bd3dc6440fda4cfb93bc6f8454eae65483f9ff3",
+        ".codex/agents/architect.toml": "db8464f26dbd1916594e7664bdcc33a6a41bf4d438eef54ae3a6a22807d5af75",
+        ".codex/agents/backend_engineer.toml": "7f67f4f1da3a8702b71ae2da25d507f46a843689d0f6798d7e70ad3b7a0159c4",
+        ".codex/agents/code_reviewer.toml": "0eddebc749d1f5bf9afbee04788675fc4546847d6625269c86d13a59465f9ee9",
+        ".codex/agents/database_engineer.toml": "c93eb1401feec8e2697da5fbc456dc70567e2d1bb781acaa9578c36822dc1d3a",
+        ".codex/agents/devops_engineer.toml": "5e38eae0edc075ec1005c3f9a07b9537baeac346555864644b228cd40a5ceeaf",
+        ".codex/agents/docs_writer.toml": "4c8e5f228dd7c28770d85744c4bf9dc75bf73da649884c5dbb54753eb65be76b",
+        ".codex/agents/figma_engineer.toml": "54dc0a839e911e793b27fa2b42585bf7fcd640fdfe034b60acafcd63d87ffb66",
+        ".codex/agents/frontend_engineer.toml": "1d206a8bf9831fb3a3d4c101a430096976a088bc87a8d95e01d1f7886af37144",
+        ".codex/agents/manager_orchestrator.toml": "2225437db49e32961320d927f48fb666dc9ed3a081f6864b5cf74e3ffaab83a7",
+        ".codex/agents/plugin_builder.toml": "d008e55b5ab3b93448d5839e7a59472666fe0f6c19c8828277130cdd9d0a620d",
+        ".codex/agents/security_reviewer.toml": "2c165facd5f961d4f95fedcdeaa7f4ed7576a50dfc8235cd314fe7365cd3bb8b",
+        ".codex/agents/skill_creator.toml": "706641512cfbf44f188b86a950694c337d80dfb17c9a11638a60a8a40adc53b5",
+        ".codex/agents/test_engineer.toml": "4c77e6c13bf3f946401d8c9f8e723428d4eff1b9b7da56231cdd2bcd77a2571c",
+        ".codex/config.toml": "b174e729bb43f71e290cebd48cd2f2bea7b7d56f1f381c42d35831db0bb48f00"
+      }
+    }
+  },
+  "history": {
+    ".agents/skills/agent-creator/SKILL.md": [
+      "dea24b8b7ac091d8c12f631ab30bf36eb6e7caf07d011e21cecfd9d282ea98f5"
+    ],
+    ".agents/skills/agent-creator/scripts/validate_project_agents.py": [
+      "617e474171adde6c11fa13bea744620162fc79c1c53051e7966a590256497eed"
+    ],
+    ".agents/skills/backend-development/SKILL.md": [
+      "4d6dedbc9575638b822aebf972df04eaf77ed2d8d7add93cf40c203296eb9352"
+    ],
+    ".agents/skills/create-skill/SKILL.md": [
+      "6ce90e31dd5633e7bcd2e3a4fd34fe68fedd72e8cefd9477c0f8533cdee0e986"
+    ],
+    ".agents/skills/create-skill/agents/openai.yaml": [
+      "3665a68d864a42eb38a1870fed2922213ecfbaac2276d4029c5c7decbd234ddc"
+    ],
+    ".agents/skills/create-skill/references/github-reference.md": [
+      "bcda6b7e11e1b3233f493aede82774b5e6a0b835d21cece10e2dce76b2699b71"
+    ],
+    ".agents/skills/create-skill/references/purpose-research.md": [
+      "090fce94b5df874e8b4805e584c9bc94d870fb411903dfd1c3885b7c650bdfef"
+    ],
+    ".agents/skills/database-design/SKILL.md": [
+      "44e8d2cbb107e4f3f14940685302c3e8e6414c492394e876d492649305c5f78d"
+    ],
+    ".agents/skills/deployment/SKILL.md": [
+      "db110b60653bcb5df3737da0591f998d924cd824cb1a9afc9e0fc59da69029a9"
+    ],
+    ".agents/skills/documentation-authoring/SKILL.md": [
+      "68c1f36863646d806d2a49b5824d4c1af9fd1be6dcb253e56524905ffd99d4fb"
+    ],
+    ".agents/skills/documentation-authoring/agents/openai.yaml": [
+      "4314de7d7aeb5c86f7843b43d4f15e20abc6f225e599d5a0e2b62b15ff522d5b"
+    ],
+    ".agents/skills/documentation-authoring/references/format-routing.md": [
+      "6b09f6e5c85f56051c8821533834696b897bb0ebbe6bf7cd1931e61cf49516ba"
+    ],
+    ".agents/skills/figma-to-code/SKILL.md": [
+      "8ae652d98b2d6abd671c736b057aeac4140df7b4a1cdde7fe4a8f2e012781e60"
+    ],
+    ".agents/skills/frontend-development/SKILL.md": [
+      "0a6c93ff88d2251927d416484fa1a9678f65ca7bb2c5a545cef4a9ba944b7175"
+    ],
+    ".agents/skills/manager-orchestrator/SKILL.md": [
+      "bf47530659654389ae16559a53456bb5099a6fd86dee7056fe90a4d10c809292"
+    ],
+    ".agents/skills/manager-orchestrator/agents/openai.yaml": [
+      "a1499d95abd8447558c535fe5554adcc3c9b988a0a39264a6283d430effe1e94"
+    ],
+    ".agents/skills/security-review/SKILL.md": [
+      "7c686376fbe6ac8a9caeedd34946c72535f26acdd2189ade5ab50e79ddb668a3"
+    ],
+    ".agents/skills/testing/SKILL.md": [
+      "23dbb2eae93c00926b6859a7c95032186d8b797f4e8fdb391a91e9bd20444fbb"
+    ],
+    ".agents/skills/website-development/SKILL.md": [
+      "7bc696992f081d7ce1652899bddb3d40fdec7bcb4302366701379b6caa5712ff"
+    ],
+    ".codex/agents/agent_creator.toml": [
+      "b865655a5534faa43bf70ae59c1cc4b256e307c8d6342cffe0f81863e2a45c6c"
+    ],
+    ".codex/agents/architect.toml": [
+      "31a4a3ce7d2caa7ce362585b24d03562ab3d2516ee05e42cfefc0e4b58bd6090"
+    ],
+    ".codex/agents/backend_engineer.toml": [
+      "e61b752b45909474e480caef0cf9405af23009727910d51e4a9c4876ea32f30c"
+    ],
+    ".codex/agents/database_engineer.toml": [
+      "f79694e98b6c771e52dc995a3403dcc9927b5b94049157e68699b5e693199e0c"
+    ],
+    ".codex/agents/devops_engineer.toml": [
+      "2fc910d5b559f13f6d8062efc2ea4b5d80992e6bb6bf0dd8d20469bdfa69a73f"
+    ],
+    ".codex/agents/docs_writer.toml": [
+      "e9e408921c56c8e03eadbed6c31a4f14a397c6f27920f6fe6851e97fa2a8a59d"
+    ],
+    ".codex/agents/figma_engineer.toml": [
+      "a33e75cc624876c6e711d4d4a06a774f4834124d186ea06027128e00da637747"
+    ],
+    ".codex/agents/frontend_engineer.toml": [
+      "741ed5c3fb7efb652ea4b1d3efae9e10651d5dc960d5bad97a406c2d12c72592"
+    ],
+    ".codex/agents/manager_orchestrator.toml": [
+      "4eaefcfe0d40be0fa8dca5d366f9f137e67180ef81cd9425ed08e2e3a6b82090"
+    ],
+    ".codex/agents/plugin_builder.toml": [
+      "dfa09c18ec4ccedc9c070b99512bc9d459737a1c206ea0f361caaebf846201a9"
+    ],
+    ".codex/agents/security_reviewer.toml": [
+      "5f61d693ded001fa62eff38e35b7292a6fb2f4fab3c29cfa41521ec84948e781"
+    ],
+    ".codex/agents/skill_creator.toml": [
+      "074ad6029c83ca50edc0cc041afda13ec45064888c32a9bc940365464be95090"
+    ],
+    ".codex/agents/test_engineer.toml": [
+      "e23894539e1264636e52aca3e5104163d4485330242b057fb724014d39d72706"
+    ],
+    ".codex/config.toml": [
+      "f9c03ad320de257e64b8831dd9c02913718bdc78e2c688c5d696cfa07981172a"
+    ]
+  }
+}

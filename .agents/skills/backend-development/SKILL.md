@@ -1,20 +1,34 @@
 ---
 name: backend-development
-description: Implement or change APIs and server-side domain behavior with explicit contracts, validation, authorization, reliability, observability, and compatibility checks.
+description: "Implement or change APIs and server-side domain behavior with explicit contracts, input validation, server-side authorization, idempotency, reliability, observability, and compatibility checks."
 ---
 
 # Backend Development
 
-## Define the contract
+## 1. Define the contract
 
-Inspect service boundaries, handlers, domain modules, auth middleware, error conventions, integrations, tests, and applicable `AGENTS.md` instructions. Specify inputs, outputs, validation, identity and authorization requirements, idempotency, failure semantics, and compatibility constraints before editing.
+- Inspect service boundaries, handlers, domain modules, auth middleware, error conventions, integrations, tests, and the applicable `AGENTS.md` files.
+- Before editing, specify the inputs, outputs, validation rules, identity and authorization requirements, idempotency, failure semantics, status codes, and compatibility constraints.
 
-## Implement safely
+## 2. Implement safely
 
-Keep transport, domain logic, and persistence responsibilities separated according to repository conventions. Validate untrusted input at the boundary and enforce authorization server-side. Make side effects explicit; use transactions, idempotency keys, retries, timeouts, or compensation only when the workflow requires them.
+- Keep transport, domain logic, and persistence separate according to repository conventions.
+- Validate untrusted input at the boundary (type, size, format, ranges) and enforce authorization on the server, including object-level checks such as "this user owns this record".
+- Make side effects explicit. Use transactions, idempotency keys, retries with backoff, timeouts, or compensation only where the workflow needs them, and bound every external call with a timeout.
+- Preserve stable contracts unless a breaking change and its migration path are authorized. Never fold schema changes into server work unless they are assigned to you (then follow the `database-design` skill); otherwise specify the needed change in your report.
+- Return structured errors and add logging, metrics, or traces that help diagnosis without exposing secrets or personal data.
+- Avoid N+1 queries and unbounded result sets; paginate list endpoints.
 
-Preserve stable contracts unless a breaking change and migration path are authorized. Do not embed schema changes in server work without coordinating the database workflow. Add structured errors and observability that aid diagnosis without exposing secrets or sensitive data.
+## 3. Verify
 
-## Verify
+- Test the domain rules and boundary validation, then the relevant integration paths.
+- Include unauthorized, forbidden, invalid, duplicate, timeout, and partial-failure cases where they apply.
+- Run the repository's type, lint, test, and build checks.
 
-Test domain rules and boundary validation, then relevant integration paths. Include unauthorized, invalid, duplicate, timeout, and partial-failure cases when applicable. Run repository type, lint, test, and build checks. Report contract changes, operational considerations, and remaining external dependencies.
+## Definition of done
+
+- [ ] The contract is written down and implemented, with backward compatibility preserved or the break authorized
+- [ ] Input validation and server-side authorization (including object-level) are enforced
+- [ ] Failure, retry, and timeout behavior is explicit
+- [ ] Tests cover success, invalid, unauthorized, and failure paths; all checks pass
+- [ ] The report lists contract changes, operational considerations, and external dependencies

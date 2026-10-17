@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frontend Development"
+  short_description: "Implement bounded frontend features"
+  default_prompt: "Use $frontend-development to implement this UI change:"
