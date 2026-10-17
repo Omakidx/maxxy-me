@@ -1,0 +1,4 @@
+interface:
+  display_name: "Testing"
+  short_description: "Build deterministic tests and verification evidence"
+  default_prompt: "Use $testing to verify this change with focused, deterministic tests:"

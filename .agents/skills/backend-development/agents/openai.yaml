@@ -1,0 +1,4 @@
+interface:
+  display_name: "Backend Development"
+  short_description: "Build APIs and server-side behavior safely"
+  default_prompt: "Use $backend-development to implement this API or server change:"

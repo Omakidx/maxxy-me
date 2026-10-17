@@ -1,229 +1,196 @@
-# Codex Multi-Agent Starter
+# maxxy-me: a multi-agent team for Claude Code and Codex
 
-A reusable, project-scoped Codex team for complex software work. The starter combines a root Manager Orchestrator, narrowly routed specialist agents, and reusable workflow skills. It is designed to add only two hidden directories to a target project:
+maxxy-me adds a ready-made engineering team to any project: a **manager orchestrator** that plans and delegates complex work, **13 specialist agents** (architect, frontend, backend, database, testing, code review, security, DevOps, docs, and more), and **12 workflow skills** they follow. One installer sets it up for **Claude Code**, **Codex**, or both.
 
-```text
-.codex/   # Project configuration and custom-agent roles
-.agents/  # Reusable workflow skills
-```
-
-The payload includes `.agents/LICENSE`, so the MIT notice travels with installed files without replacing the target project's root license.
-
-The manager selects the smallest effective team, runs independent work in parallel, integrates the result, and routes validation failures back to the appropriate specialist. Small tasks can remain single-agent work.
+The manager picks the smallest team that fits the task, gives each specialist a self-contained brief, runs independent work in parallel, integrates the results, routes failures back to their owner, and keeps going until your acceptance criteria pass. Small tasks stay single-agent.
 
 Created by **Omakidx** and released under the [MIT License](LICENSE).
 
-## What is included
+## Install
 
-### Custom agents
-
-| Agent | Best fit |
-| --- | --- |
-| `manager_orchestrator` | Explicitly invoked, complex tasks that need routing, delegation, integration, and final validation |
-| `architect` | Cross-system boundaries, contracts, sequencing, and high-impact technical decisions |
-| `figma_engineer` | Figma-sourced UI, design assets, screenshots, and measured visual parity |
-| `frontend_engineer` | React/Next.js, browser UI, accessibility, responsive behavior, and frontend performance |
-| `backend_engineer` | APIs, authentication and authorization, server logic, jobs, integrations, and reliability |
-| `database_engineer` | Schemas, migrations, queries, indexes, backfills, and persistence integrity |
-| `test_engineer` | Test strategy, deterministic reproduction, regression coverage, and independent acceptance checks |
-| `security_reviewer` | Threat modeling and read-only review of security-sensitive changes |
-| `devops_engineer` | CI/CD, containers, environments, deployment workflows, and production readiness |
-| `docs_writer` | Technical and product documentation in text, web, API, Word, PDF, and related formats |
-| `agent_creator` | Explicitly requested creation or refinement of project-scoped agents and companion skills |
-| `skill_creator` | Explicitly requested creation or update of one project-scoped skill from a pinned public GitHub reference or a researched purpose; distinct from custom-agent creation |
-| `plugin_builder` | Explicit plugin design and repository-scoped source work; external writes, installation, live tests, and credential persistence require separate authorization |
-
-The descriptions in [`.codex/config.toml`](.codex/config.toml) are the routing source of truth. Each role's model, reasoning effort, sandbox, and focused instructions live under [`.codex/agents/`](.codex/agents/).
-
-### Workflow skills
-
-| Skill | Workflow |
-| --- | --- |
-| `$manager-orchestrator` | Dependency-aware team selection, delegation, integration, repair, and final validation |
-| `$agent-creator` | Design, registration, evaluation, and measured refinement of custom agents |
-| `$create-skill` | Create or update one project-scoped skill from an exact GitHub reference or researched natural-language purpose |
-| `$figma-to-code` | Figma-to-implementation workflow with parity and accessibility checks |
-| `$website-development` | Complete landing pages and website experiences |
-| `$frontend-development` | Bounded browser-facing feature implementation |
-| `$backend-development` | APIs and server-side domain behavior |
-| `$database-design` | Schemas, migrations, integrity, queries, and backfills |
-| `$testing` | Unit, integration, E2E, and regression validation |
-| `$security-review` | Evidence-based, read-only security assessment |
-| `$deployment` | CI/CD, containers, hosting, environments, and release safety |
-| `$documentation-authoring` | Repository-grounded documentation across supported formats |
-
-See [Architecture and routing](#architecture-and-routing) for how these pieces cooperate.
-
-## Prerequisites
-
-- Git, to clone this starter repository.
-- A Codex environment that supports project-scoped custom agents, skills, and multi-agent sessions.
-- Python 3.11 or newer for the installer and validation helpers.
-- A POSIX environment with no-follow, directory-relative file operations for the hardened installer.
-- An existing project directory that you can write to.
-
-External services are optional. Figma, Brave/direct web search, and Chrome capabilities are used only when they are available, authenticated where required, and relevant to the task. They are not bundled with this starter.
-
-## Install safely
-
-Add the starter to your existing project in two simple steps:
-
-1. Open a terminal in your existing project's root directory. No project path is needed: setup uses the directory you are already in.
-
-2. Copy and paste these commands:
-
-   ```bash
-   git clone --branch origin-skill --single-branch https://github.com/Omakidx/maxxy-me.git /tmp/maxxy-me
-   /tmp/maxxy-me/setup.sh
-   ```
-
-   Setup installs only `.codex` and `.agents` into the project you have open, never replaces the project's root `LICENSE`, and stops before writing if it finds a conflicting file. When it finishes, reopen the project in a new Codex task and start using the agents and skills.
-
-## Use the manager
-
-Explicitly invoke the manager for a substantial task:
-
-```text
-$manager-orchestrator implement account recovery across the API and web app,
-including migration-safe persistence, regression tests, and security review
-```
-
-The manager inspects the repository and applicable `AGENTS.md` files, derives acceptance criteria, reads available agent descriptions, and creates bounded workstreams. It does not automatically spawn every role. The root manager remains responsible for architecture, integration, conflict resolution, repair routing, and the final tested result.
-
-Use a focused skill directly when full orchestration would be unnecessary, for example:
-
-```text
-$documentation-authoring update the local development guide to match the current scripts
-```
-
-## Create a project skill
-
-Invoke `$create-skill` explicitly when the desired deliverable is a reusable skill rather than a custom-agent role. New skills default to `.agents/skills/<normalized-name>` in the current project. Writing to a personal or global skill directory, installing or publishing the skill, or installing and executing dependencies requires separate explicit authorization.
-
-To reproduce or adapt a particular public GitHub skill, provide a URL that identifies one skill directory at an exact ref or immutable commit, for example:
-
-```text
-$create-skill create a project-scoped skill from
-https://github.com/example-org/example-skills/tree/0123456789abcdef0123456789abcdef01234567/skills/release-notes
-```
-
-The creator freezes the resolved source commit, inventories the skill directory and its required local resources, and reports provenance and license status. GitHub content is treated as untrusted, inert evidence: downloaded scripts are statically inspected but not executed, and nested links, submodules, symlinks, dependencies, and credentials are not followed or used. Repository-root URLs, moving default-branch URLs without an exact skill path, and other ambiguous references require clarification. When licensing or unavailable resources prevent reuse, the creator may produce an original behavioral adaptation, but it does not claim exact parity.
-
-To design a new workflow from its purpose, describe the intended users, work, outputs, and important constraints:
-
-```text
-$create-skill create a changelog-authoring skill for a TypeScript monorepo.
-It should derive release notes from merged changes, preserve package boundaries,
-and validate Markdown links without publishing a release.
-```
-
-Research uses callable Brave Search first, then available direct built-in web search. Chrome is reserved for evidence that requires interaction, authentication, JavaScript rendering, or visual inspection. These integrations are conditional and are not bundled or guaranteed by the starter.
-
-## Customize the team
-
-Common adjustments include:
-
-- Change concurrency in `[agents]` inside [`.codex/config.toml`](.codex/config.toml). The starter permits up to eight concurrent threads per session.
-- Change a role's `model`, `model_reasoning_effort`, sandbox, or instructions in its [`.codex/agents/`](.codex/agents/) TOML file.
-- Remove an optional role by deleting both its `[agents.<name>]` registration and matching role file.
-- Add or revise a workflow under [`.agents/skills/`](.agents/skills/) and keep its `SKILL.md` focused on executable workflow instructions.
-- Tighten permissions and integrations to match the target repository's policies.
-
-The manager is intentionally configured for `gpt-5.6-sol` with `ultra` reasoning. Other roles use capability-appropriate settings. Confirm that selected models and reasoning levels are available in your Codex environment before changing them. See [Customization and safety](#customization-and-safety) for a change checklist.
-
-## Architecture and routing
-
-The starter keeps runtime discovery separate from reusable workflows:
-
-```text
-target-project/
-├── .codex/
-│   ├── config.toml          # Multi-agent settings, concurrency, and registrations
-│   └── agents/*.toml        # Per-role model, sandbox, and instructions
-└── .agents/
-    ├── LICENSE              # MIT notice shipped with the payload
-    └── skills/*/SKILL.md    # Reusable task workflows
-```
-
-A custom agent defines **who owns a bounded responsibility**; a skill defines **how a repeatable workflow is executed**. When `$manager-orchestrator` is invoked, it:
-
-1. Reads the objective, repository state, supplied artifacts, and applicable `AGENTS.md` instructions.
-2. Derives acceptance criteria, constraints, and required validation.
-3. Reads registered descriptions and maps the objective into technical domains and dependencies.
-4. Selects the smallest effective specialist team, retaining small or tightly coupled work itself.
-5. Gives each specialist bounded ownership, resources, dependencies, permissions, acceptance criteria, and validation.
-6. Runs independent work concurrently and dependent work in phases.
-7. Integrates actual changes, resolves shared contracts and conflicts, and runs final checks.
-8. Routes failures to the owning specialist and repeats validation until the original criteria pass or a genuine blocker requires input.
-
-Testing and security review are chosen according to scope and risk. Agent creation, skill creation, and plugin building are explicit-only capabilities, not default implementation steps. Plugin source work remains repository-scoped and offline by default; personal/global writes, installation, live provider tests, and plaintext credential persistence are separate authorization gates. Write-heavy agents should not own the same files concurrently unless the manager deliberately requests competing implementations.
-
-### Configuration sources of truth
-
-| Concern | Source |
-| --- | --- |
-| Multi-agent settings and concurrency | `.codex/config.toml` |
-| Routing descriptions | `[agents.<name>]` in `.codex/config.toml` |
-| Per-role model, sandbox, and instructions | `.codex/agents/<name>.toml` |
-| Reusable workflows | `.agents/skills/<skill>/SKILL.md` |
-| Target-specific constraints | Applicable `AGENTS.md` files |
-
-Keep role names and `config_file` paths synchronized. The validator checks these relationships.
-
-## Customization and safety
-
-The installer is intentionally conservative:
-
-- `--dry-run` reports planned changes without writing.
-- Missing destination files can be copied; byte-identical files are skipped.
-- A differing file or unsafe destination path is a conflict.
-- All conflicts are detected before any write begins.
-- Target files are never deleted or automatically overwritten.
-- If an unexpected runtime failure happens after creation starts, any newly created entries remain for manual inspection; the installer does not roll back by deleting target names.
-
-The installer intentionally targets POSIX systems. It exits without installing when the host lacks the directory-relative, no-follow operations required to enforce its path-safety guarantees.
-
-This is not a three-way merge tool. Before installing into a project that already has `.codex` or `.agents`, back up those directories, preview the install, review every conflict, and merge TOML or skill changes deliberately. Preserve target-specific `AGENTS.md` requirements and least-privilege choices.
-
-Each role declares either a read-only or workspace-write sandbox according to its responsibility. Sandbox settings do not authorize deployment, shared-infrastructure changes, publishing, commits, pushes, credential disclosure, or destructive actions. Those still require explicit user authorization.
-
-Figma, Brave/direct web search, and Chrome are conditional integrations. Follow the integration's own authentication process and keep API keys, cookies, tokens, and other credentials out of `.codex`, `.agents`, documentation, logs, and version control. If a capability is unavailable, provide the relevant source artifact or require the agent to state the verification limit.
-
-After customization, run `python3 .starter/validate.py` and the target repository's own tests, linting, type checks, builds, and security controls. Starter validation verifies package structure, registration, portability, and isolated installation; it does not prove a target application is correct.
-
-## Update an installed project
-
-Run a dry run against the project again:
+Open a terminal in your project's root directory and run:
 
 ```bash
-python3 .starter/install.py /absolute/path/to/project --dry-run
+sh -c 'd=$(mktemp -d) && git clone -q --depth 1 https://github.com/Omakidx/maxxy-me.git "$d" && sh "$d/setup.sh" "$@"; s=$?; rm -rf "$d"; exit $s' maxxy-me
 ```
 
-Unchanged files are skipped. If the installed project has customized a starter file and the new starter contains a different version, installation stops before writing. Compare the two versions, preserve the project's intent, merge manually, then rerun the dry run and validation. There is deliberately no automatic overwrite path.
+The command works in any shell. It clones the starter into a fresh private temporary directory, runs setup, and deletes the clone afterwards. To pass options, add them at the end, after `maxxy-me` (for example `... maxxy-me --agent codex`).
 
-## Remove the starter
+Before anything is written, setup asks which coding agent you use. Move with <kbd>↑</kbd>/<kbd>↓</kbd> and press <kbd>Enter</kbd> (or press <kbd>1</kbd>–<kbd>3</kbd>, or <kbd>q</kbd> to cancel):
 
-If `.codex` and `.agents` contain only files installed from this starter, back them up and remove those two directories from the target project. If they also contain project-owned configuration or skills, remove only the starter registrations, role files, and skill directories after reviewing their references. The installer does not provide an uninstall command and never deletes project files.
+```text
+maxxy-me multi-agent starter 4.0.0
+Project: /path/to/your-project
+
+? Which coding agent are you installing maxxy-me for?
+  ❯ Claude Code  .claude/agents + .claude/skills
+    Codex        .codex + .agents/skills
+    Both         Claude Code and Codex side by side
+  ↑/↓ to move · enter to select · q to quit
+```
+
+Setup only touches its own files in the project you are in: it adds them, and on later runs updates or removes the versions it shipped earlier. It never overwrites a file you have changed, and it stops before writing anything if it finds a conflict.
+
+**Requirements:** Git, Python 3.8 or newer, and Linux, macOS, or WSL. Figma, web search, and browser tools are used when your agent has them, but they are optional.
+
+### Setup options
+
+| Option | What it does |
+| --- | --- |
+| `--agent claude` / `codex` / `both` | Skip the menu, for scripts and CI. Required when no terminal is available. |
+| `--dry-run` | Show the plan without changing any files. |
+| `--uninstall` | Remove the starter's files that you have not modified. |
+| `--verbose` | List every file in the plan. |
+| `PATH` | Install into another project instead of the current directory. |
+
+Exit codes: `0` success, `1` error, `2` invalid options, `3` stopped on a conflict (nothing written), `130` cancelled.
+
+## What gets installed
+
+| Claude Code | Codex |
+| --- | --- |
+| `.claude/agents/*.md` (13 specialist subagents) | `.codex/config.toml` (multi-agent settings and role registrations; an existing one is kept) |
+| `.claude/skills/*/SKILL.md` (12 skills) | `.codex/agents/*.toml` (manager plus 13 specialist roles) |
+| `.claude/maxxy-me/LICENSE` | `.agents/skills/*/` (12 skills with `agents/openai.yaml` metadata) |
+| | `.agents/LICENSE` |
+
+Nothing else in your project is touched: no root `CLAUDE.md`, `AGENTS.md`, settings files, or `LICENSE`.
+
+## Use it
+
+### Claude Code
+
+1. Start a new Claude Code session in the project (or run `/agents` to reload agents).
+2. Hand the manager a substantial objective:
+
+   ```text
+   /manager-orchestrator implement account recovery across the API and web app,
+   with migration-safe persistence, regression tests, and a security review
+   ```
+
+In Claude Code, your main session *is* the manager: the skill gives it the orchestration workflow, and it dispatches the specialist subagents. Use a strong session model for large jobs (`/model opus`, or `/model fable` when available).
+
+You can also run a workflow skill directly (`/testing add regression tests for the reset flow`) or ask for a specialist by name ("have the code-reviewer agent review my diff").
+
+### Codex
+
+1. Open the project in Codex and **trust it when asked**. Codex ignores a project's `.codex/` configuration until the project is trusted, so the team stays invisible until you do.
+2. Start a new task:
+
+   ```text
+   $manager-orchestrator implement account recovery across the API and web app,
+   with migration-safe persistence, regression tests, and a security review
+   ```
+
+`$manager-orchestrator` runs the workflow in your current session, on that session's model, and spawns the specialist roles with Codex's multi-agent tools. Pick `gpt-6.1-sol` with high reasoning for large jobs.
+
+For the dedicated manager instead, ask Codex to spawn it: `Spawn the manager_orchestrator agent to implement account recovery ...`. That role is pinned to `gpt-6.1-sol` with `ultra` reasoning. It reports questions and plan approvals back to your session, because a spawned agent cannot ask you directly.
+
+Run a focused skill directly with `$testing`, `$documentation-authoring`, and so on.
+
+## The team
+
+| Agent | Owns | Write access | Claude Code model | Codex model / effort |
+| --- | --- | --- | --- | --- |
+| manager-orchestrator | Triage, delegation, integration, final validation | Yes | your session model (skill) | your session model (skill); `gpt-6.1-sol` / ultra when spawned as the role |
+| architect | Boundaries, contracts, sequencing, trade-offs | Read-only | opus | `gpt-6.1-sol` / xhigh |
+| figma-engineer | Figma-sourced UI with measured parity | Yes | sonnet | `gpt-6-sol` / high |
+| frontend-engineer | Browser UI, state, accessibility, performance | Yes | sonnet | `gpt-6-sol` / high |
+| backend-engineer | APIs, auth, server logic, jobs, integrations | Yes | sonnet | `gpt-6-sol` / high |
+| database-engineer | Schemas, migrations, queries, backfills | Yes | sonnet | `gpt-6-sol` / high |
+| test-engineer | Test strategy, reproductions, acceptance checks | Tests only | sonnet | `gpt-6-luna` / high |
+| code-reviewer | Independent correctness review of a diff | Read-only | opus | `gpt-6.1-sol` / xhigh |
+| security-reviewer | Threat modeling and security review | Read-only | opus | `gpt-6.1-sol` / xhigh |
+| devops-engineer | CI/CD, containers, environments, releases | Yes | sonnet | `gpt-6-sol` / high |
+| docs-writer | Documentation in any format | Yes | sonnet | `gpt-6-sol` / high |
+| agent-creator | Creating or refining custom agents (explicit only) | Yes | opus | `gpt-6.1-sol` / xhigh |
+| skill-creator | Creating or updating one skill (explicit only) | Skills only | opus | `gpt-6.1-sol` / xhigh |
+| plugin-builder | Plugin source; install only with separate consent | Yes | opus | `gpt-6.1-sol` / xhigh |
+
+Specialists don't spawn other agents; only the manager delegates. Claude Code enforces this by removing their `Agent` tool, and on Codex each role is instructed not to. Each one finishes with the same structured report (status, outcome, changed files, validation run, contracts, risks), so the manager can integrate results without redoing the work.
+
+| Skill | Workflow | Invocation |
+| --- | --- | --- |
+| `manager-orchestrator` | Triage, team selection, briefs, phased delegation, integration, repair | Explicit only |
+| `agent-creator` | Role contract, research, least-privilege design, forward evaluation | Explicit only |
+| `create-skill` | One skill from a pinned GitHub reference or researched purpose | Explicit only |
+| `figma-to-code` | Figma to production UI with parity checks | Automatic or explicit |
+| `website-development` | Complete pages and landing experiences | Automatic or explicit |
+| `frontend-development` | Bounded frontend features | Automatic or explicit |
+| `backend-development` | APIs and server-side behavior | Automatic or explicit |
+| `database-design` | Schemas, migrations, integrity, backfills | Automatic or explicit |
+| `testing` | Deterministic unit, integration, and E2E coverage | Automatic or explicit |
+| `security-audit` | Read-only, evidence-based security assessment | Automatic or explicit |
+| `deployment` | CI/CD, containers, releases, rollback safety | Automatic or explicit |
+| `documentation-authoring` | Repository-grounded docs in any format | Automatic or explicit |
+
+Invoke skills with `/name` in Claude Code or `$name` in Codex. Explicit-only skills never load on their own: Claude Code marks them `disable-model-invocation: true`, and Codex sets `allow_implicit_invocation: false`.
+
+## Update or remove
+
+Rerun the install command to update. Every shipped file is recorded with its hash, along with the hashes of earlier releases, so setup can:
+
+- add new files and skip files that are already current;
+- update files that still match an earlier release you never edited;
+- remove unmodified files that a newer release no longer ships (for example, the old `security-review` skill, now `security-audit`);
+- stop, before writing anything, if a file differs from every shipped version. Merge or move the listed files, then run setup again.
+
+Installs of the earlier Codex-only release upgrade the same way.
+
+To remove the starter, run this from the project root:
+
+```bash
+sh -c 'd=$(mktemp -d) && git clone -q --depth 1 https://github.com/Omakidx/maxxy-me.git "$d" && sh "$d/setup.sh" "$@"; s=$?; rm -rf "$d"; exit $s' maxxy-me --uninstall
+```
+
+It deletes only files that are byte-identical to a shipped version, keeps anything you changed (and tells you), and removes folders it leaves empty.
+
+## Customize
+
+Edit the installed files in your project directly:
+
+- **Models:** `model` in `.claude/agents/<name>.md` (`opus`, `sonnet`, `haiku`, `fable`, or `inherit`), or `model` and `model_reasoning_effort` in `.codex/agents/<name>.toml`. Confirm that the models are available to your account.
+- **Tool access (Claude Code):** each specialist lists `disallowedTools`. `Agent` is always removed so only the manager delegates; read-only roles also lose `Write`, `Edit`, and `NotebookEdit`. They keep `Bash` for inspection, so their instructions also carry a read-only contract.
+- **Concurrency (Codex):** `max_concurrent_threads_per_session` in `.codex/config.toml` (8 by default).
+- **Routing:** agent descriptions decide when each specialist is chosen. Keep them specific and non-overlapping.
+- **New roles and skills:** ask for them with `/agent-creator` or `/create-skill` (`$agent-creator` or `$create-skill` in Codex).
+
+Current Codex builds ignore `sandbox_mode` in role files (subagents inherit the parent session's sandbox), so every read-only role also states its policy in its instructions.
+
+Files you customize are never overwritten, but a customized file stops the whole update (exit code `3`, nothing written). Move it aside, rerun setup, then reapply your change. The one exception is `.codex/config.toml`: if yours differs, setup keeps it and still installs the roles, because Codex discovers them in `.codex/agents/` on its own. Add `max_concurrent_threads_per_session = 8` under `[agents]` in your config for full parallelism.
+
+To check a customized install, run the bundled validator (Python 3.11 or newer):
+
+```bash
+python3 .claude/skills/agent-creator/scripts/validate_project_agents.py --platform claude
+python3 .agents/skills/agent-creator/scripts/validate_project_agents.py --platform codex --codex-doctor
+```
+
+`--codex-doctor` loads the project in an isolated, trusted Codex home and fails if Codex would skip or reject any role.
 
 ## Troubleshooting
 
-### The manager or skills are not discovered
+- **"No interactive terminal available"**: you ran setup without a terminal (CI, or a piped shell). Add `--agent claude`, `--agent codex`, or `--agent both`.
+- **Setup stopped on a conflict (exit code 3)**: a listed file differs from every version the starter has shipped. Nothing was written. Move the file aside, rerun setup, then merge your change back.
+- **Codex doesn't see the agents**: trust the project (see [Codex](#codex)), then start a new task. Run the validator with `--codex-doctor` to see any role Codex rejects.
+- **Claude Code doesn't list the agents or skills**: start a new session in the project root, or run `/agents`.
+- **A model is unavailable**: change `model` in the affected agent file to one your account has, then rerun the validator.
 
-- Confirm `.codex/config.toml` and `.agents/skills/manager-orchestrator/SKILL.md` exist at the target project root.
-- Start a new Codex task rooted in that project after installation.
-- Run `python3 .starter/validate.py` in the starter repository.
+## Develop the starter
 
-### Installation reports a conflict
+Agents and skills are written once, in [`team/`](team/), and rendered for each platform:
 
-The target contains a file at the same path with different content. No files were written. Compare and merge the reported path manually; do not delete project configuration just to make installation pass.
+```bash
+python3 .starter/build.py                    # regenerate .claude/, .codex/, .agents/ and .starter/manifest.json
+python3 .starter/validate.py                 # static checks: build sync, structure, portability
+python3 -m unittest discover -s tests -v     # unit, contract, and end-to-end installer tests
+```
 
-### A specialist cannot use Figma, search, or Chrome
+The test suite uses only the standard library. Unit tests cover the renderer, manifest history, installer planning, file operations, the arrow-key parser, and the agent validator. Contract tests check the generated payloads, and integration tests run `setup.sh` end to end. The end-to-end tests cover every install choice, the interactive picker on a pseudo-terminal, conflicts, symlink attacks, failed writes, a real upgrade from the last Codex-only release, uninstall, and the README one-liner itself.
 
-Those capabilities are conditional. Make the relevant integration available and authenticate it according to your Codex environment, or provide the required design/source material directly. Never store API keys or session credentials in this repository.
+`setup.sh` runs with the interpreter that runs the tests, so `python3.8 -m unittest discover -s tests` checks the installer on Python 3.8 (the build and validator tests skip below 3.11). Two optional checks use real CLIs: set `CODEX_CLI_PATH` (or put `codex` on `PATH`) to load the installed team with Codex, and set `MAXXY_TEST_CLAUDE_CLI=1` to start a headless Claude Code session that must load every agent and skill (this may use a little model quota). CI runs the suite on Linux and macOS, plus the installer tests on Python 3.8.
 
-### A registered model is unavailable
-
-Choose an available model and supported reasoning effort in the affected role file, then rerun validation. Keep stronger reasoning for architecture, orchestration, security review, and difficult implementation work.
+Never edit the generated `.claude/`, `.codex/`, or `.agents/` directories in this repository; `validate.py` and the tests fail when they drift from `team/`. Commit the generated files together with their sources: the manifest's upgrade history comes from previously committed versions. [`team/README.md`](team/README.md) documents the source format and template syntax. Maintainer scripts need Python 3.11 or newer.
 
 ## License
 

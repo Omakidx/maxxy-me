@@ -1,3 +1,4 @@
 interface:
   display_name: "Documentation Authoring"
   short_description: "Create accurate multi-format documentation"
+  default_prompt: "Use $documentation-authoring to write or update this documentation:"
